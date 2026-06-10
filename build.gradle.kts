@@ -1,6 +1,7 @@
 plugins {
     id("java")
     id("jacoco")
+    id("application")
 }
 
 group = "com"
@@ -105,4 +106,9 @@ tasks.jacocoTestCoverageVerification {
             }
         }
     }
+}
+
+application {
+    mainClass.set("com.gym.GymApplication")
+    applicationDefaultJvmArgs = listOf("--enable-preview")
 }
