@@ -1,0 +1,26 @@
+[
+  {
+    "traineeId": 1,
+    "trainerId": 1,
+    "trainingName": "Morning Strength Session",
+    "trainingType": "Strength Training",
+    "trainingDate": "2026-06-01",
+    "trainingDurationMinutes": 60
+  },
+  {
+    "traineeId": 2,
+    "trainerId": 2,
+    "trainingName": "Evening Yoga Flow",
+    "trainingType": "Yoga",
+    "trainingDate": "2026-06-03",
+    "trainingDurationMinutes": 45
+  },
+  {
+    "traineeId": 3,
+    "trainerId": 3,
+    "trainingName": "Cardio Blast",
+    "trainingType": "Cardio",
+    "trainingDate": "2026-06-05",
+    "train9ingDurationMinutes": 30
+  }
+]

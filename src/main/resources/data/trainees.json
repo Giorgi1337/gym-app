@@ -1,0 +1,29 @@
+[
+  {
+    "userId": 1,
+    "firstName": "Alice",
+    "lastName": "Johnson",
+    "username": "Alice.Johnson",
+    "isActive": true,
+    "dateOfBirth": "1995-04-12",
+    "address": "14 Rustaveli Ave, Tbilisi"
+  },
+  {
+    "userId": 2,
+    "firstName": "Bob",
+    "lastName": "Martinez",
+    "username": "Bob.Martinez",
+    "isActive": true,
+    "dateOfBirth": "1998-09-30",
+    "address": "7 Kostava St, Tbilisi"
+  },
+  {
+    "userId": 3,
+    "firstName": "Carol",
+    "lastName": "White",
+    "username": "Carol.White",
+    "isActive": false,
+    "dateOfBirth": "1990-01-25",
+    "address": "3 Agmashenebeli Ave, Tbilisi"
+  }
+]
