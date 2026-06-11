@@ -10,7 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class TrainingService {
@@ -18,27 +19,20 @@ public class TrainingService {
     private static final Logger log = LoggerFactory.getLogger(TrainingService.class);
 
     private Dao<Training, Long> trainingDao;
-    private Map<Long, Training> trainingStorage;
-
-    private long sequence = 1L;
+    private final AtomicLong sequence = new AtomicLong(1);
 
     @Autowired
     public void setTrainingDao(Dao<Training, Long> trainingDao) {
         this.trainingDao = trainingDao;
     }
 
-    @Autowired
-    public void setTrainingStorage(Map<Long, Training> trainingStorage) {
-        this.trainingStorage = trainingStorage;
-    }
-
     @PostConstruct
     public void initSequence() {
-        if (!trainingStorage.isEmpty()) {
-            sequence = trainingStorage.keySet().stream()
-                    .max(Long::compareTo)
-                    .orElse(0L) + 1;
-            log.info("Training sequence initialized to {}", sequence);
+        Set<Long> ids = trainingDao.findAllIds();
+        if (!ids.isEmpty()) {
+            long max = ids.stream().max(Long::compareTo).orElse(0L);
+            sequence.set(max + 1);
+            log.info("Training sequence initialized to {}", sequence.get());
         }
     }
 
@@ -47,7 +41,7 @@ public class TrainingService {
         Validate.notNull(training.getTrainerId(), "TrainerId must not be null");
         Validate.notNull(training.getTrainingName(), "TrainingName must not be null");
 
-        Long id = sequence++;
+        Long id = sequence.getAndIncrement();
 
         trainingDao.save(id, training);
         log.info("Created training id = {}, trainerId = {}, traineeId = {}, name = {}, type = {}, date = {}, duration = {} min",

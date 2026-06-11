@@ -1,8 +1,6 @@
 package com.gym.dao;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class InMemoryDao<T, ID> implements Dao<T, ID> {
 
@@ -31,4 +29,10 @@ public class InMemoryDao<T, ID> implements Dao<T, ID> {
     public void delete(ID id) {
         storage.remove(id);
     }
+
+    @Override
+    public Set<ID> findAllIds() {
+        return Collections.unmodifiableSet(storage.keySet());
+    }
+
 }

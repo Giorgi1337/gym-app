@@ -25,7 +25,6 @@ public class TrainingServiceTest {
 
         trainingService = new TrainingService();
         trainingService.setTrainingDao(trainingDao);
-        trainingService.setTrainingStorage(storage);
         trainingService.initSequence();
     }
 
@@ -78,12 +77,16 @@ public class TrainingServiceTest {
 
     @Test
     void initSequenceContinuesFromMaxExistingId() {
-        storage.put(5L, buildTraining(1L, 2L, "Existing Training", TrainingType.STRENGTH));
+        ConcurrentHashMap<Long, Training> preloaded = new ConcurrentHashMap<>();
+        preloaded.put(5L, buildTraining(1L, 2L, "Existing Training", TrainingType.STRENGTH));
 
-        trainingService.initSequence();
-        trainingService.create(buildTraining(1L, 2L, "New Training", TrainingType.CARDIO));
+        TrainingService freshService = new TrainingService();
+        freshService.setTrainingDao(new InMemoryDao<>(preloaded));
+        freshService.initSequence();
 
-        assertThat(storage).containsKey(6L);
+        freshService.create(buildTraining(1L, 2L, "New Training", TrainingType.CARDIO));
+
+        assertThat(preloaded).containsKey(6L);
     }
 
     @Test

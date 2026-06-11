@@ -38,7 +38,7 @@ public class UsernameGenerator {
         String normalizedLast = StringUtils.capitalize(lastName.toLowerCase());
 
         // Build base: "John.Smith"
-        String base = base = StringUtils.joinWith(".", normalizedFirst, normalizedLast);
+        String base = StringUtils.joinWith(".", normalizedFirst, normalizedLast);
 
         // Collect all existing usernames from both storages
         Set<String> existingUsernames = collectAllUsernames();

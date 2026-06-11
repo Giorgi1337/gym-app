@@ -1,6 +1,7 @@
 package com.gym.dao;
 
 import java.util.List;
+import java.util.Set;
 
 public interface Dao<T, ID> {
 
@@ -14,5 +15,9 @@ public interface Dao<T, ID> {
 
     default boolean exists(ID id) {
         return findById(id) != null;
+    }
+
+    default Set<ID> findAllIds() {
+        throw new UnsupportedOperationException("findAllIds() not implemented");
     }
 }
