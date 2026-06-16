@@ -1,34 +1,53 @@
 package com.gym.model;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
 import lombok.*;
-import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
+@Entity
+@Table(name = "trainees")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@SuperBuilder
-@EqualsAndHashCode(callSuper = true)
-public final class Trainee extends User {
+@Builder
+public class Trainee {
 
-    @Setter(AccessLevel.NONE)
-    @JsonProperty("userId")
-    private Long userId;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @JsonProperty("dateOfBirth")
-    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Past(message = "Date of birth must be in the past")
+    @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
-    @JsonProperty("address")
+    @Column(name = "address")
     private String address;
 
-    @Override
-    public String toString() {
-        return "Trainee [userId=%d | %s | dob=%s | address=%s]"
-                .formatted(userId, super.toString(), dateOfBirth, address);
-    }
+    @Valid
+    @NotNull(message = "User is required")
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    private User user;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "trainee_trainer",
+            joinColumns = @JoinColumn(name = "trainee_id"),
+            inverseJoinColumns = @JoinColumn(name = "trainer_id")
+    )
+    @Builder.Default
+    private Set<Trainer> trainers = new HashSet<>();
+
+    @OneToMany(mappedBy = "trainee", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Training> trainings = new ArrayList<>();
 }

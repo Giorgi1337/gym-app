@@ -1,47 +1,51 @@
 package com.gym.model;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.LocalDate;
 
+@Entity
+@Table(name = "trainings")
 @Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode
 public class Training {
 
-    @JsonProperty("traineeId")
-    private Long traineeId;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @JsonProperty("trainerId")
-    private Long trainerId;
+    @NotNull(message = "Trainee is required")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "trainee_id", nullable = false)
+    private Trainee trainee;
 
-    @JsonProperty("trainingName")
+    @NotNull(message = "Trainer is required")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "trainer_id", nullable = false)
+    private Trainer trainer;
+
+    @NotBlank(message = "Training name is required")
+    @Column(name = "training_name", nullable = false)
     private String trainingName;
 
-    @JsonProperty("trainingType")
+    @NotNull(message = "Training type is required")
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "training_type_id", nullable = false)
     private TrainingType trainingType;
 
-    @JsonProperty("trainingDate")
-    @JsonFormat(pattern = "yyyy-MM-dd")
+    @NotNull(message = "Training date is required")
+    @Column(name = "training_date", nullable = false)
     private LocalDate trainingDate;
 
-    @JsonProperty("trainingDurationMinutes")
-    private int trainingDurationMinutes;
-
-    @Override
-    public String toString() {
-        return "Training[name='%s' | trainerId=%d | traineeId=%d | type=%s | date=%s | duration=%dmin]"
-                .formatted(
-                        trainingName,
-                        trainerId,
-                        traineeId,
-                        trainingType,
-                        trainingDate,
-                        trainingDurationMinutes
-                );
-    }
+    @NotNull(message = "Training duration is required")
+    @Min(value = 1, message = "Duration must be positive")
+    @Column(name = "training_duration", nullable = false)
+    private Integer trainingDuration;
 }

@@ -1,40 +1,24 @@
 package com.gym.model;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
-import lombok.Getter;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
 
-import java.util.Arrays;
 
+@Entity
+@Table(name = "training_types")
 @Getter
-public enum TrainingType {
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TrainingType {
 
-    CARDIO("Cardio"),
-    STRENGTH("Strength Training"),
-    YOGA("Yoga"),
-    PILATES("Pilates"),
-    CROSSFIT("CrossFit"),
-    BOXING("Boxing"),
-    POWERLIFTING("Powerlifting");
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @JsonValue
-    private final String displayName;
-
-    TrainingType(String displayName) {
-        this.displayName = displayName;
-    }
-
-    @JsonCreator
-    public static TrainingType fromDisplayName(String displayName) {
-        return Arrays.stream(values())
-                .filter(t -> t.displayName.equalsIgnoreCase(displayName))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Unknown training type: " + displayName));
-    }
-
-    @Override
-    public String toString() {
-        return displayName;
-    }
+    @NotBlank(message = "Training type name is required")
+    @Column(name = "training_type_name", nullable = false, unique = true)
+    private String trainingTypeName;
 }

@@ -1,36 +1,45 @@
 package com.gym.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.*;
-import lombok.experimental.SuperBuilder;
 
+import static com.gym.utils.NameUtils.NAME_REGEX;
+
+@Entity
+@Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@SuperBuilder
-@EqualsAndHashCode
-public abstract sealed class User permits Trainer, Trainee {
+@Builder
+public class User {
 
-    @JsonProperty("firstName")
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @NotBlank(message = "First name is required")
+    @Pattern(regexp = NAME_REGEX, message = "First name contains invalid characters")
+    @Column(name = "first_name", nullable = false)
     private String firstName;
 
-    @JsonProperty("lastName")
+    @NotBlank(message = "Last name is required")
+    @Pattern(regexp = NAME_REGEX, message = "Last name contains invalid characters")
+    @Column(name = "last_name", nullable = false)
     private String lastName;
 
-    @JsonProperty("username")
+    @NotBlank(message = "Username is required")
+    @Column(name = "username", nullable = false, unique = true)
     private String username;
 
-    @Getter(AccessLevel.NONE)
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @NotBlank(message = "Password is required")
+    @Column(name = "password", nullable = false)
     private String password;
 
-    @JsonProperty("isActive")
-    private boolean isActive;
-
-    @Override
-    public String toString() {
-        return "firstName=%s | lastName=%s | username=%s | isActive=%b"
-                .formatted(firstName, lastName, username, isActive);
-    }
+    @NotNull(message = "Active status is required")
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive;
 }
