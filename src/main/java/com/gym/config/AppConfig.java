@@ -1,59 +1,93 @@
 package com.gym.config;
 
-import com.gym.dao.Dao;
-import com.gym.dao.InMemoryDao;
-import com.gym.model.Trainee;
-import com.gym.model.Trainer;
-import com.gym.model.Training;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.PropertySource;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
+import org.flywaydb.core.Flyway;
+import org.hibernate.SessionFactory;
+import org.springframework.context.annotation.*;
+import org.springframework.core.env.Environment;
+import org.springframework.dao.annotation.PersistenceExceptionTranslationPostProcessor;
+import org.springframework.orm.jpa.hibernate.HibernateTransactionManager;
+import org.springframework.orm.jpa.hibernate.LocalSessionFactoryBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Properties;
 
 @Configuration
+@EnableTransactionManagement
 @ComponentScan(basePackages = "com.gym")
-@PropertySource("classpath:application.properties")
+@PropertySource("classpath:hibernate.properties")
 public class AppConfig {
 
-    @Bean
-    public ObjectMapper objectMapper() {
-        return JsonMapper.builder()
-                .findAndAddModules()
-                .build();
+    private final Environment env;
+
+    public AppConfig(Environment env) {
+        this.env = env;
     }
 
     @Bean
-    public Map<Long, Trainee> traineeStorage() {
-        return new ConcurrentHashMap<>();
+    @DependsOn("flyway")
+    public LocalSessionFactoryBean sessionFactoryBean() {
+        LocalSessionFactoryBean sessionFactory = new LocalSessionFactoryBean();
+        sessionFactory.setPackagesToScan("com.gym.model");
+        sessionFactory.setHibernateProperties(hibernateProperties());
+        return sessionFactory;
     }
 
     @Bean
-    public Map<Long, Trainer> trainerStorage() {
-        return new ConcurrentHashMap<>();
+    public PlatformTransactionManager transactionManager(SessionFactory sessionFactory) {
+        return new HibernateTransactionManager(sessionFactory);
     }
 
     @Bean
-    public Map<Long, Training> trainingStorage() {
-        return new ConcurrentHashMap<>();
+    public Flyway flyway() {
+        Flyway flyway = Flyway.configure()
+                .dataSource(
+                        env.getRequiredProperty("hibernate.connection.url"),
+                        env.getRequiredProperty("hibernate.connection.username"),
+                        env.getRequiredProperty("hibernate.connection.password")
+                )
+                .locations("classpath:db/migration")
+                .load();
+        flyway.migrate();
+        return flyway;
     }
 
     @Bean
-    public Dao<Trainee, Long> traineeDao(Map<Long, Trainee> traineeStorage) {
-        return new InMemoryDao<>(traineeStorage);
+    public PersistenceExceptionTranslationPostProcessor exceptionTranslation() {
+        return new PersistenceExceptionTranslationPostProcessor();
     }
 
     @Bean
-    public Dao<Trainer, Long> trainerDao(Map<Long, Trainer> trainerStorage) {
-        return new InMemoryDao<>(trainerStorage);
+    public LocalValidatorFactoryBean validator() {
+        return new LocalValidatorFactoryBean();
     }
 
     @Bean
-    public Dao<Training, Long> trainingDao(Map<Long, Training> trainingStorage) {
-        return new InMemoryDao<>(trainingStorage);
+    public MethodValidationPostProcessor methodValidationPostProcessor() {
+        return new MethodValidationPostProcessor();
+    }
+
+    private Properties hibernateProperties() {
+        Properties props = new Properties();
+        props.setProperty("hibernate.connection.driver_class", env.getRequiredProperty("hibernate.connection.driver_class"));
+        props.setProperty("hibernate.connection.url", env.getRequiredProperty("hibernate.connection.url"));
+        props.setProperty("hibernate.connection.username", env.getRequiredProperty("hibernate.connection.username"));
+        props.setProperty("hibernate.connection.password", env.getRequiredProperty("hibernate.connection.password"));
+
+        props.setProperty("hibernate.connection.provider_class", "org.hibernate.hikaricp.internal.HikariCPConnectionProvider");
+        props.setProperty("hibernate.hikari.minimumIdle", env.getRequiredProperty("hikari.minimumIdle"));
+        props.setProperty("hibernate.hikari.maximumPoolSize", env.getRequiredProperty("hikari.maximumPoolSize"));
+        props.setProperty("hibernate.hikari.idleTimeout", env.getRequiredProperty("hikari.idleTimeout"));
+        props.setProperty("hibernate.hikari.connectionTimeout", env.getRequiredProperty("hikari.connectionTimeout"));
+        props.setProperty("hibernate.hikari.maxLifetime", env.getRequiredProperty("hikari.maxLifetime"));
+
+        props.setProperty("hibernate.dialect", env.getRequiredProperty("hibernate.dialect"));
+        props.setProperty("hibernate.show_sql", env.getRequiredProperty("hibernate.show_sql"));
+        props.setProperty("hibernate.format_sql", env.getRequiredProperty("hibernate.format_sql"));
+        props.setProperty("hibernate.hbm2ddl.auto", env.getRequiredProperty("hibernate.hbm2ddl.auto"));
+
+        return props;
     }
 }

@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: postgres-db
+
+    environment:
+      POSTGRES_DB: gym-crm-db
+      POSTGRES_USER: gymUser
+      POSTGRES_PASSWORD: secret
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
