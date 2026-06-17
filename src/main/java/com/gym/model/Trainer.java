@@ -1,8 +1,10 @@
 package com.gym.model;
 
+import com.gym.validation.OnCreate;
 import jakarta.persistence.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.groups.ConvertGroup;
 import lombok.*;
 
 import java.util.HashSet;
@@ -22,12 +24,15 @@ public class Trainer {
     private Long id;
 
     @Valid
-    @NotNull(message = "User is required")
+    @ConvertGroup(from = OnCreate.class, to = OnCreate.class)
+    @NotNull(message = "User is required", groups = OnCreate.class)
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    @NotNull(message = "Specialization is required")
+    @Valid
+    @ConvertGroup(from = OnCreate.class, to = OnCreate.class)
+    @NotNull(message = "Specialization is required", groups = OnCreate.class)
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "specialization_id", nullable = false)
     private TrainingType specialization;

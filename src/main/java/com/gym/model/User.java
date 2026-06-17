@@ -1,5 +1,6 @@
 package com.gym.model;
 
+import com.gym.validation.OnCreate;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -21,13 +22,13 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "First name is required")
-    @Pattern(regexp = NAME_REGEX, message = "First name contains invalid characters")
+    @NotBlank(message = "First name is required", groups = OnCreate.class)
+    @Pattern(regexp = NAME_REGEX, message = "First name contains invalid characters", groups = OnCreate.class)
     @Column(name = "first_name", nullable = false)
     private String firstName;
 
-    @NotBlank(message = "Last name is required")
-    @Pattern(regexp = NAME_REGEX, message = "Last name contains invalid characters")
+    @NotBlank(message = "Last name is required", groups = OnCreate.class)
+    @Pattern(regexp = NAME_REGEX, message = "Last name contains invalid characters", groups = OnCreate.class)
     @Column(name = "last_name", nullable = false)
     private String lastName;
 
@@ -39,7 +40,7 @@ public class User {
     @Column(name = "password", nullable = false)
     private String password;
 
-    @NotNull(message = "Active status is required")
+    @NotNull(message = "Active status is required", groups = OnCreate.class)
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 }

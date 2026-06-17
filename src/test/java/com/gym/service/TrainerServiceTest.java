@@ -1,152 +1,189 @@
 package com.gym.service;
 
-import com.gym.dao.InMemoryDao;
+import com.gym.dao.TrainerDao;
+import com.gym.dao.TrainingTypeDao;
 import com.gym.model.Trainer;
+import com.gym.model.TrainingType;
+import com.gym.model.User;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
+import org.mockito.MockedStatic;
+import jakarta.validation.ConstraintViolationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class TrainerServiceTest {
 
     private TrainerService trainerService;
-    private InMemoryDao<Trainer, Long> trainerDao;
-    private ConcurrentHashMap<Long, Trainer> storage;
     private UsernameGenerator usernameGenerator;
-    private PasswordGenerator passwordGenerator;
+    private TrainingTypeDao trainingTypeDao;
+    private MockedStatic<PasswordGenerator> passwordGenerator;
+    private Validator validator;
 
     @BeforeEach
-    public void setup() {
-        storage = new ConcurrentHashMap<>();
-        trainerDao = new InMemoryDao<>(storage);
+    void setup() {
+        validator = Validation.buildDefaultValidatorFactory().getValidator();
+        TrainerDao trainerDao = mock(TrainerDao.class);
         usernameGenerator = mock(UsernameGenerator.class);
-        passwordGenerator = mock(PasswordGenerator.class);
+        trainingTypeDao = mock(TrainingTypeDao.class);
+        trainerService = new TrainerService(trainerDao, usernameGenerator, trainingTypeDao, validator);
+        passwordGenerator = mockStatic(PasswordGenerator.class);
+    }
 
-        trainerService = new TrainerService();
-        trainerService.setTrainerDao(trainerDao);
-        trainerService.setUsernameGenerator(usernameGenerator);
-        trainerService.setPasswordGenerator(passwordGenerator);
+    @AfterEach
+    void tearDown() {
+        passwordGenerator.close();
     }
 
     @Test
-    void createWithGeneratedUsernameAndPassword() {
-        Trainer trainer = buildTrainer(1L, "Alice", "Johnson", "Yoga");
+    void saveSetsUsernameAndPassword() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        setupGenerators("John", "Smith");
+        when(trainingTypeDao.findByName("Boxing")).thenReturn(boxing());
 
-        when(usernameGenerator.generate("Alice", "Johnson")).thenReturn("Alice.Johnson");
-        when(passwordGenerator.generate()).thenReturn("pass123ABC");
+        trainerService.save(trainer);
 
-        Trainer result = trainerService.create(trainer);
-
-        assertThat(result.getUsername()).isEqualTo("Alice.Johnson");
-        assertThat(result.isActive()).isTrue();
-        assertThat(storage.get(1L)).isEqualTo(result);
+        assertThat(trainer.getUser().getUsername()).isEqualTo("John.Smith");
+        assertThat(trainer.getUser().getPassword()).isEqualTo("pass123ABC");
     }
 
     @Test
-    void createThrowsExceptionWhenTrainerIsNull() {
-        assertThatThrownBy(() -> trainerService.create(null))
-                .isInstanceOf(NullPointerException.class);
+    void saveNormalizesNames() {
+        Trainer trainer = buildTrainer("john", "smith", "Boxing");
+        setupGenerators("John", "Smith");
+        when(trainingTypeDao.findByName("Boxing")).thenReturn(boxing());
+
+        trainerService.save(trainer);
+
+        assertThat(trainer.getUser().getFirstName()).isEqualTo("John");
+        assertThat(trainer.getUser().getLastName()).isEqualTo("Smith");
     }
 
     @Test
-    void createThrowsExceptionWhenUserIdIsNull() {
-        assertThatThrownBy(() -> trainerService.create(buildTrainer(null, "Alice", "Johnson", "Yoga")))
-                .isInstanceOf(NullPointerException.class);
+    void saveLooksUpSpecializationByName() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        setupGenerators("John", "Smith");
+        TrainingType boxing = boxing();
+        when(trainingTypeDao.findByName("Boxing")).thenReturn(boxing);
+
+        trainerService.save(trainer);
+
+        assertThat(trainer.getSpecialization()).isEqualTo(boxing);
     }
 
     @Test
-    void createThrowsExceptionWhenTrainerAlreadyExists() {
-        storage.put(1L, buildTrainer(1L, "Alice", "Johnson", "Yoga"));
+    void saveThrowsWhenSpecializationNotFoundInDb() {
+        Trainer trainer = buildTrainer("John", "Smith", "Unknown");
+        setupGenerators("John", "Smith");
+        when(trainingTypeDao.findByName("Unknown")).thenReturn(null);
 
-        assertThatThrownBy(() -> trainerService.create(buildTrainer(1L, "Alice", "Johnson", "Yoga")))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Trainer already exists with id: 1");
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Specialization not found: Unknown");
     }
 
     @Test
-    void updateUpdatesAllowedFields() {
-        storage.put(1L, buildTrainer(1L, "Alice", "Johnson", "Yoga"));
+    void saveThrowsWhenUserIsNull() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.setUser(null);
 
-        Trainer updated = Trainer.builder()
-                .userId(1L)
-                .firstName("Alicia")
-                .lastName("Johnstone")
-                .specialization("Pilates")
-                .build();
-
-        Trainer result = trainerService.update(updated);
-
-        assertThat(result.getFirstName()).isEqualTo("Alicia");
-        assertThat(result.getLastName()).isEqualTo("Johnstone");
-        assertThat(result.getSpecialization()).isEqualTo("Pilates");
-        assertThat(storage.get(1L)).isEqualTo(result);
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("User is required");
     }
 
     @Test
-    void updateThrowsExceptionWhenTrainerNotFound() {
-        assertThatThrownBy(() -> trainerService.update(buildTrainer(1L, "Alice", "Johnson", "Yoga")))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Trainer not found with id: 1");
+    void saveThrowsWhenSpecializationIsNull() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.setSpecialization(null);
+
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Specialization is required");
     }
 
     @Test
-    void updateThrowsExceptionWhenTrainerIsNull() {
-        assertThatThrownBy(() -> trainerService.update(null))
-                .isInstanceOf(NullPointerException.class);
+    void saveThrowsWhenFirstNameIsBlank() {
+        Trainer trainer = buildTrainer("", "Smith", "Boxing");
+
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("First name is required");
     }
 
     @Test
-    void updateThrowsExceptionWhenUserIdIsNull() {
-        assertThatThrownBy(() -> trainerService.update(buildTrainer(null, "Alice", "Johnson", "Yoga")))
-                .isInstanceOf(NullPointerException.class);
+    void saveThrowsWhenLastNameIsBlank() {
+        Trainer trainer = buildTrainer("John", "", "Boxing");
+
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Last name is required");
     }
 
     @Test
-    void findByIdReturnsTrainerWhenExists() {
-        Trainer trainer = buildTrainer(1L, "Alice", "Johnson", "Yoga");
-        storage.put(1L, trainer);
+    void saveThrowsWhenFirstNameHasInvalidCharacters() {
+        Trainer trainer = buildTrainer("J0hn!", "Smith", "Boxing");
 
-        assertThat(trainerService.findById(1L)).isEqualTo(Optional.of(trainer));
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("First name contains invalid characters");
     }
 
     @Test
-    void findByIdReturnsEmptyWhenNotFound() {
-        assertThat(trainerService.findById(1L)).isEmpty();
+    void saveThrowsWhenLastNameHasInvalidCharacters() {
+        Trainer trainer = buildTrainer("John", "Sm1th@", "Boxing");
+
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Last name contains invalid characters");
     }
 
     @Test
-    void findByIdThrowsExceptionWhenIdIsNull() {
-        assertThatThrownBy(() -> trainerService.findById(null))
-                .isInstanceOf(NullPointerException.class);
+    void saveThrowsWhenIsActiveIsNull() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setIsActive(null);
+
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Active status is required");
     }
 
     @Test
-    void findAllReturnsAllTrainers() {
-        storage.put(1L, buildTrainer(1L, "Alice", "Johnson", "Yoga"));
-        storage.put(2L, buildTrainer(2L, "Bob", "Williams", "CrossFit"));
+    void saveThrowsWhenSpecializationNameIsBlank() {
+        Trainer trainer = buildTrainer("John", "Smith", "");
 
-        assertThat(trainerService.findAll()).hasSize(2);
+        assertThatThrownBy(() -> trainerService.save(trainer))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Training type name is required");
     }
 
-    @Test
-    void findAllReturnsEmptyListWhenNoTrainers() {
-        assertThat(trainerService.findAll()).isEmpty();
+    private void setupGenerators(String firstName, String lastName) {
+        when(usernameGenerator.generate(firstName, lastName))
+                .thenReturn(firstName + "." + lastName);
+        passwordGenerator.when(PasswordGenerator::generate).thenReturn("pass123ABC");
     }
 
-    private Trainer buildTrainer(Long id, String firstName, String lastName, String specialization) {
+    private TrainingType boxing() {
+        return TrainingType.builder().trainingTypeName("Boxing").build();
+    }
+
+    private Trainer buildTrainer(String firstName, String lastName, String specialization) {
         return Trainer.builder()
-                .userId(id)
-                .firstName(firstName)
-                .lastName(lastName)
-                .specialization(specialization)
+                .user(User.builder()
+                        .firstName(firstName)
+                        .lastName(lastName)
+                        .isActive(true)
+                        .build())
+                .specialization(TrainingType.builder()
+                        .trainingTypeName(specialization)
+                        .build())
                 .build();
     }
 }

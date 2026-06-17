@@ -1,176 +1,176 @@
 package com.gym.service;
 
-import com.gym.dao.InMemoryDao;
+import com.gym.dao.TraineeDao;
 import com.gym.model.Trainee;
+import com.gym.model.User;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ConstraintViolationException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.time.LocalDate;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
+import static org.mockito.Mockito.*;
 
 public class TraineeServiceTest {
 
     private TraineeService traineeService;
-    private InMemoryDao<Trainee, Long> traineeDao;
-    private ConcurrentHashMap<Long, Trainee> storage;
     private UsernameGenerator usernameGenerator;
-    private PasswordGenerator passwordGenerator;
+    private MockedStatic<PasswordGenerator> passwordGenerator;
+    private Validator validator;
 
     @BeforeEach
     public void setup() {
-        storage = new ConcurrentHashMap<>();
-        traineeDao = new InMemoryDao<>(storage);
+        validator = Validation.buildDefaultValidatorFactory().getValidator();
+        TraineeDao traineeDao = mock(TraineeDao.class);
         usernameGenerator = mock(UsernameGenerator.class);
-        passwordGenerator = mock(PasswordGenerator.class);
+        traineeService = new TraineeService(traineeDao, usernameGenerator, validator);
+        passwordGenerator = mockStatic(PasswordGenerator.class);
+    }
 
-        traineeService = new TraineeService();
-        traineeService.setTraineeDao(traineeDao);
-        traineeService.setUsernameGenerator(usernameGenerator);
-        traineeService.setPasswordGenerator(passwordGenerator);
+    @AfterEach
+    void tearDown() {
+        passwordGenerator.close();
     }
 
     @Test
-    void createWithGeneratedUserNameAndPassword() {
-        Trainee trainee = buildTrainee(1L, "John", "Smith");
+    void saveSetsUsernameAndPassword() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        setupGenerators("John", "Smith");
 
-        when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
-        when(passwordGenerator.generate()).thenReturn("pass123ABC");
+        traineeService.save(trainee);
 
-        Trainee result = traineeService.create(trainee);
-
-        assertThat(result.getUsername()).isEqualTo("John.Smith");
-        assertThat(result.isActive()).isTrue();
-        assertThat(storage.get(1L)).isEqualTo(result);
+        assertThat(trainee.getUser().getUsername()).isEqualTo("John.Smith");
+        assertThat(trainee.getUser().getPassword()).isEqualTo("pass123ABC");
     }
 
     @Test
-    void createThrowsExceptionWhenTraineeIsNull() {
-        assertThatThrownBy(() -> traineeService.create(null))
-                .isInstanceOf(NullPointerException.class);
+    void saveNormalizesNames() {
+        Trainee trainee = buildTrainee("john", "smith");
+        setupGenerators("John", "Smith");
+
+        traineeService.save(trainee);
+
+        assertThat(trainee.getUser().getFirstName()).isEqualTo("John");
+        assertThat(trainee.getUser().getLastName()).isEqualTo("Smith");
     }
 
     @Test
-    void createThrowsExceptionWhenUserIdIsNull() {
-        assertThatThrownBy(() -> traineeService.create(buildTrainee(null, "John", "Smith")))
-                .isInstanceOf(NullPointerException.class);
+    void saveCallsUsernameGeneratorWithNormalizedNames() {
+        Trainee trainee = buildTrainee("john", "smith");
+        setupGenerators("John", "Smith");
+
+        traineeService.save(trainee);
+
+        verify(usernameGenerator).generate("John", "Smith");
     }
 
     @Test
-    void createThrowsExceptionWhenTraineeAlreadyExists() {
-        storage.put(1L, buildTrainee(1L, "John", "Smith"));
+    void saveThrowsWhenUserIsNull() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.setUser(null);
 
-        assertThatThrownBy(() -> traineeService.create(buildTrainee(1L, "John", "Smith")))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Trainee already exists with id: 1");
+        assertThatThrownBy(() -> traineeService.save(trainee))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("User is required");
     }
 
     @Test
-    void updateUpdatesAllowedFields() {
-        storage.put(1L, buildTrainee(1L, "John", "Smith"));
+    void saveThrowsWhenFirstNameIsBlank() {
+        Trainee trainee = buildTrainee("", "Smith");
 
-        Trainee updated = Trainee.builder()
-                .userId(1L)
-                .firstName("Johnny")
-                .lastName("Smithson")
-                .dateOfBirth(LocalDate.of(1995, 1, 1))
-                .address("New Address")
-                .build();
-
-        Trainee result = traineeService.update(updated);
-
-        assertThat(result.getFirstName()).isEqualTo("Johnny");
-        assertThat(result.getLastName()).isEqualTo("Smithson");
-        assertThat(result.getAddress()).isEqualTo("New Address");
-        assertThat(result.getDateOfBirth()).isEqualTo(LocalDate.of(1995, 1, 1));
-        assertThat(storage.get(1L)).isEqualTo(result);
+        assertThatThrownBy(() -> traineeService.save(trainee))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("First name is required");
     }
 
     @Test
-    void updateThrowsExceptionWhenTraineeNotFound() {
-        assertThatThrownBy(() -> traineeService.update(buildTrainee(1L, "John", "Smith")))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Trainee not found with id: 1");
+    void saveThrowsWhenLastNameIsBlank() {
+        Trainee trainee = buildTrainee("John", "");
+
+        assertThatThrownBy(() -> traineeService.save(trainee))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Last name is required");
     }
 
     @Test
-    void updateThrowsExceptionWhenTraineeIsNull() {
-        assertThatThrownBy(() -> traineeService.update(null))
-                .isInstanceOf(NullPointerException.class);
+    void saveThrowsWhenFirstNameHasInvalidCharacters() {
+        Trainee trainee = buildTrainee("J0hn!", "Smith");
+
+        assertThatThrownBy(() -> traineeService.save(trainee))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("First name contains invalid characters");
     }
 
     @Test
-    void updateThrowsExceptionWhenUserIdIsNull() {
-        assertThatThrownBy(() -> traineeService.update(buildTrainee(null, "John", "Smith")))
-                .isInstanceOf(NullPointerException.class);
+    void saveThrowsWhenLastNameHasInvalidCharacters() {
+        Trainee trainee = buildTrainee("John", "Sm1th@");
+
+        assertThatThrownBy(() -> traineeService.save(trainee))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Last name contains invalid characters");
     }
 
     @Test
-    void deleteRemovesTraineeWhenExists() {
-        storage.put(1L, buildTrainee(1L, "John", "Smith"));
+    void saveThrowsWhenIsActiveIsNull() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setIsActive(null);
 
-        traineeService.delete(1L);
-
-        assertThat(storage.get(1L)).isNull();
+        assertThatThrownBy(() -> traineeService.save(trainee))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Active status is required");
     }
 
     @Test
-    void deleteThrowsExceptionWhenTraineeNotFound() {
-        assertThatThrownBy(() -> traineeService.delete(1L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Trainee not found with id: 1");
+    void saveThrowsWhenDateOfBirthIsInFuture() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.setDateOfBirth(LocalDate.now().plusYears(1));
+
+        assertThatThrownBy(() -> traineeService.save(trainee))
+                .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("Date of birth must be in the past");
     }
 
     @Test
-    void deleteThrowsExceptionWhenIdIsNull() {
-        assertThatThrownBy(() -> traineeService.delete(null))
-                .isInstanceOf(NullPointerException.class);
+    void saveWithNullDateOfBirthSucceeds() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.setDateOfBirth(null);
+        setupGenerators("John", "Smith");
+
+        assertThatNoException().isThrownBy(() -> traineeService.save(trainee));
     }
 
     @Test
-    void findByIdReturnsTraineeWhenExists() {
-        Trainee trainee = buildTrainee(1L, "John", "Smith");
-        storage.put(1L, trainee);
+    void saveWithNullAddressSucceeds() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.setAddress(null);
+        setupGenerators("John", "Smith");
 
-        assertThat(traineeService.findById(1L)).isEqualTo(Optional.of(trainee));
+        assertThatNoException().isThrownBy(() -> traineeService.save(trainee));
     }
 
-    @Test
-    void findByIdReturnsEmptyWhenNotFound() {
-        assertThat(traineeService.findById(1L)).isEmpty();
+    private void setupGenerators(String firstName, String lastName) {
+        when(usernameGenerator.generate(firstName, lastName))
+                .thenReturn(firstName + "." + lastName);
+        passwordGenerator.when(PasswordGenerator::generate).thenReturn("pass123ABC");
     }
 
-    @Test
-    void findByIdThrowsExceptionWhenIdIsNull() {
-        assertThatThrownBy(() -> traineeService.findById(null))
-                .isInstanceOf(NullPointerException.class);
-    }
-
-    @Test
-    void findAllReturnsAllTrainees() {
-        storage.put(1L, buildTrainee(1L, "John", "Smith"));
-        storage.put(2L, buildTrainee(2L, "Jane", "Doe"));
-
-        assertThat(traineeService.findAll()).hasSize(2);
-    }
-
-    @Test
-    void findAllReturnsEmptyListWhenNoTrainees() {
-        assertThat(traineeService.findAll()).isEmpty();
-    }
-
-    private Trainee buildTrainee(Long id, String firstName, String lastName) {
+    private Trainee buildTrainee(String firstName, String lastName) {
         return Trainee.builder()
-                .userId(id)
-                .firstName(firstName)
-                .lastName(lastName)
+                .user(User.builder()
+                        .firstName(firstName)
+                        .lastName(lastName)
+                        .isActive(true)
+                        .build())
+                .dateOfBirth(LocalDate.of(1999, 5, 6))
                 .build();
     }
 }

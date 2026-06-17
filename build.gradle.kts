@@ -132,6 +132,10 @@ tasks.jacocoTestCoverageVerification {
     }
 }
 
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
 application {
     mainClass.set("com.gym.GymApplication")
     applicationDefaultJvmArgs = listOf("--enable-preview")
