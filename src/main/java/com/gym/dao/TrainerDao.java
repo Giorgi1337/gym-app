@@ -4,6 +4,8 @@ import com.gym.model.Trainer;
 import org.hibernate.SessionFactory;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public class TrainerDao {
 
@@ -17,5 +19,18 @@ public class TrainerDao {
         sessionFactory.getCurrentSession().persist(trainer);
     }
 
+    public Optional<Trainer> findByUserName(String username) {
+        return sessionFactory.getCurrentSession()
+                .createQuery("""
+                                SELECT t 
+                                FROM  Trainer t 
+                                JOIN FETCH t.user u 
+                                WHERE u.username = :username
+                                """,
+                        Trainer.class
+                )
+                .setParameter("username", username)
+                .uniqueResultOptional();
+    }
 
 }

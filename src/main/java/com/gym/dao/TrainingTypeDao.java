@@ -15,8 +15,7 @@ public class TrainingTypeDao {
 
     public TrainingType findByName(final String name) {
         return sessionFactory.getCurrentSession()
-                .createQuery(
-                        """
+                .createQuery("""
                                 SELECT t 
                                 FROM TrainingType t 
                                 WHERE LOWER(t.trainingTypeName) = LOWER(:name) 

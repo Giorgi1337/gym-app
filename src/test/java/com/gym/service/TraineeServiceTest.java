@@ -14,14 +14,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.time.LocalDate;
+import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class TraineeServiceTest {
 
+    private TraineeDao traineeDao;
     private TraineeService traineeService;
     private UsernameGenerator usernameGenerator;
     private MockedStatic<PasswordGenerator> passwordGenerator;
@@ -30,7 +30,7 @@ public class TraineeServiceTest {
     @BeforeEach
     public void setup() {
         validator = Validation.buildDefaultValidatorFactory().getValidator();
-        TraineeDao traineeDao = mock(TraineeDao.class);
+        traineeDao = mock(TraineeDao.class);
         usernameGenerator = mock(UsernameGenerator.class);
         traineeService = new TraineeService(traineeDao, usernameGenerator, validator);
         passwordGenerator = mockStatic(PasswordGenerator.class);
@@ -155,6 +155,31 @@ public class TraineeServiceTest {
         setupGenerators("John", "Smith");
 
         assertThatNoException().isThrownBy(() -> traineeService.save(trainee));
+    }
+
+    @Test
+    void findByUsernameReturnsTrainee() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        setupGenerators("John", "Smith");
+        traineeService.save(trainee);
+
+        String username = trainee.getUser().getUsername();
+        when(traineeDao.findByUserName(username)).thenReturn(Optional.of(trainee));
+
+        Trainee result = traineeService.findByUsername(username);
+
+        assertThat(result.getUser().getUsername()).isEqualTo(username);
+        assertThat(result.getUser().getFirstName()).isEqualTo("John");
+        assertThat(result.getUser().getLastName()).isEqualTo("Smith");
+    }
+
+    @Test
+    void findByUsernameThrowsWhenNotFound() {
+        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> traineeService.findByUsername("unknown"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Trainee not found: unknown");
     }
 
     private void setupGenerators(String firstName, String lastName) {

@@ -2,9 +2,11 @@ package com.gym.service;
 
 import com.gym.dao.TrainerDao;
 import com.gym.dao.TrainingTypeDao;
+import com.gym.exception.AuthenticationException;
 import com.gym.model.Trainer;
 import com.gym.model.TrainingType;
 import com.gym.model.User;
+import com.gym.security.RequiresAuthentication;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
 import com.gym.validation.OnCreate;
@@ -72,5 +74,17 @@ public class TrainerService {
 
         trainerDao.save(trainer);
         log.info("Created trainer with username: {}", trainer.getUser().getUsername());
+    }
+
+    @RequiresAuthentication
+    @Transactional(readOnly = true)
+    public Trainer findByUsername(String username) {
+        log.info("Fetching trainer by username: {}", username);
+
+        return trainerDao.findByUserName(username)
+                .orElseThrow(() -> {
+                    log.warn("Trainer not found: {}", username);
+                    return new AuthenticationException("Trainer not found: " + username);
+                });
     }
 }

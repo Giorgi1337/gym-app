@@ -18,6 +18,7 @@ import java.util.Properties;
 @EnableTransactionManagement
 @ComponentScan(basePackages = "com.gym")
 @PropertySource("classpath:hibernate.properties")
+@EnableAspectJAutoProxy
 public class AppConfig {
 
     private final Environment env;

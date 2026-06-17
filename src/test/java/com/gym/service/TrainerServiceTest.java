@@ -2,6 +2,7 @@ package com.gym.service;
 
 import com.gym.dao.TrainerDao;
 import com.gym.dao.TrainingTypeDao;
+import com.gym.exception.AuthenticationException;
 import com.gym.model.Trainer;
 import com.gym.model.TrainingType;
 import com.gym.model.User;
@@ -15,12 +16,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import jakarta.validation.ConstraintViolationException;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class TrainerServiceTest {
 
+    private TrainerDao trainerDao;
     private TrainerService trainerService;
     private UsernameGenerator usernameGenerator;
     private TrainingTypeDao trainingTypeDao;
@@ -30,7 +33,7 @@ public class TrainerServiceTest {
     @BeforeEach
     void setup() {
         validator = Validation.buildDefaultValidatorFactory().getValidator();
-        TrainerDao trainerDao = mock(TrainerDao.class);
+        trainerDao = mock(TrainerDao.class);
         usernameGenerator = mock(UsernameGenerator.class);
         trainingTypeDao = mock(TrainingTypeDao.class);
         trainerService = new TrainerService(trainerDao, usernameGenerator, trainingTypeDao, validator);
@@ -162,6 +165,33 @@ public class TrainerServiceTest {
         assertThatThrownBy(() -> trainerService.save(trainer))
                 .isInstanceOf(ConstraintViolationException.class)
                 .hasMessageContaining("Training type name is required");
+    }
+
+    @Test
+    void findByUsernameReturnsTrainer() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        setupGenerators("John", "Smith");
+
+        when(trainingTypeDao.findByName("Boxing")).thenReturn(boxing());
+        trainerService.save(trainer);
+
+        String username = trainer.getUser().getUsername();
+        when(trainerDao.findByUserName(username)).thenReturn(Optional.of(trainer));
+
+        Trainer result = trainerService.findByUsername(username);
+
+        assertThat(result.getUser().getUsername()).isEqualTo(username);
+        assertThat(result.getUser().getFirstName()).isEqualTo("John");
+        assertThat(result.getUser().getLastName()).isEqualTo("Smith");
+    }
+
+    @Test
+    void findByUsernameThrowsWhenNotFound() {
+        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> trainerService.findByUsername("unknown"))
+                .isInstanceOf(AuthenticationException.class)
+                .hasMessageContaining("Trainer not found: unknown");
     }
 
     private void setupGenerators(String firstName, String lastName) {

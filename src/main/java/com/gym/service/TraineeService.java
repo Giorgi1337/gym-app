@@ -3,6 +3,7 @@ package com.gym.service;
 import com.gym.dao.TraineeDao;
 import com.gym.model.Trainee;
 import com.gym.model.User;
+import com.gym.security.RequiresAuthentication;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
 import com.gym.validation.OnCreate;
@@ -57,6 +58,18 @@ public class TraineeService {
 
         traineeDao.save(trainee);
         log.info("Created trainee with username: {}", username);
+    }
+
+    @RequiresAuthentication
+    @Transactional(readOnly = true)
+    public Trainee findByUsername(final String username) {
+        log.info("Fetching trainee by username: {}", username);
+
+        return traineeDao.findByUserName(username)
+                .orElseThrow(() -> {
+                    log.warn("Trainee not found: {}", username);
+                    return new IllegalArgumentException("Trainee not found: " + username);
+                });
     }
 
 }
