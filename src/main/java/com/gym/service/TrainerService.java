@@ -3,6 +3,7 @@ package com.gym.service;
 import com.gym.dao.TrainerDao;
 import com.gym.dao.TrainingTypeDao;
 import com.gym.exception.AuthenticationException;
+import com.gym.model.Trainee;
 import com.gym.model.Trainer;
 import com.gym.model.TrainingType;
 import com.gym.model.User;
@@ -86,5 +87,85 @@ public class TrainerService {
                     log.warn("Trainer not found: {}", username);
                     return new AuthenticationException("Trainer not found: " + username);
                 });
+    }
+
+    @RequiresAuthentication
+    public void changePassword(final String username, final String oldPassword, final String newPassword) {
+        log.info("Changing password for trainer: {}", username);
+
+        Trainer trainer = trainerDao.findByUserName(username)
+                .orElseThrow(() -> {
+                    log.warn("Trainee not found: {}", username);
+                    return new IllegalArgumentException("Trainer not found: " + username);
+                });
+
+        User user = trainer.getUser();
+
+        if (!user.getPassword().equals(oldPassword)) {
+            log.warn("Password change failed for trainer: {} — old password does not match", username);
+            throw new AuthenticationException("Old password does not match");
+        }
+
+        if (newPassword == null || newPassword.isBlank()) {
+            log.warn("Password change failed for trainer: {} — new password is blank", username);
+            throw new IllegalArgumentException("New password must not be blank");
+        }
+
+        user.setPassword(newPassword);
+        log.info("Password changed successfully for trainer: {}", username);
+    }
+
+    @RequiresAuthentication
+    public Trainer update(final String username, final Trainer updatedData) {
+        log.info("Updating trainer: {}", username);
+
+        Trainer trainer = findByUsername(username);
+
+        String firstName = normalize(updatedData.getUser().getFirstName());
+        String lastName = normalize(updatedData.getUser().getLastName());
+
+        if (firstName.isBlank() || lastName.isBlank()) {
+            log.warn("Update failed for trainer: {} — first or last name is blank", username);
+            throw new IllegalArgumentException("First name and last name are required");
+        }
+
+        trainer.getUser().setFirstName(firstName);
+        trainer.getUser().setLastName(lastName);
+
+        String newUsername = usernameGenerator.generate(firstName, lastName);
+        trainer.getUser().setUsername(newUsername);
+
+        if (updatedData.getSpecialization() != null) {
+            String specializationName = StringUtils.normalizeSpace(
+                    updatedData.getSpecialization().getTrainingTypeName()
+            );
+
+            TrainingType specialization = trainingTypeDao.findByName(specializationName);
+            if (specialization == null) {
+                log.warn("Update failed for trainer: {} — specialization not found: {}", username, specializationName);
+                throw new IllegalArgumentException("Specialization not found: " + specializationName);
+            }
+
+            trainer.setSpecialization(specialization);
+        }
+
+        log.info("Trainer updated successfully: {} → new username: {}", username, newUsername);
+        return trainer;
+    }
+
+    @RequiresAuthentication
+    public void setActive(final String username, final boolean active) {
+        log.info("Setting trainer: {} to {}", username, active ? "active" : "inactive");
+
+        Trainer trainer = findByUsername(username);
+        User user = trainer.getUser();
+
+        if (user.getIsActive().equals(active)) {
+            log.warn("Trainer: {} is already {}", username, active ? "active" : "inactive");
+            throw new IllegalStateException("Trainer is already " + (active ? "active" : "inactive"));
+        }
+
+        user.setIsActive(active);
+        log.info("Trainer: {} is now {}", username, active ? "active" : "inactive");
     }
 }

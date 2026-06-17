@@ -33,4 +33,8 @@ public class TraineeDao {
                 .uniqueResultOptional();
     }
 
+    public void delete(Trainee trainee) {
+        sessionFactory.getCurrentSession().remove(trainee);
+    }
+
 }

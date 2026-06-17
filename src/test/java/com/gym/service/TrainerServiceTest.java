@@ -194,6 +194,212 @@ public class TrainerServiceTest {
                 .hasMessageContaining("Trainer not found: unknown");
     }
 
+    @Test
+    void changePasswordSucceeds() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setPassword("oldPass123");
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        trainerService.changePassword("John.Smith", "oldPass123", "newPass456");
+
+        assertThat(trainer.getUser().getPassword()).isEqualTo("newPass456");
+    }
+
+    @Test
+    void changePasswordThrowsWhenTrainerNotFound() {
+        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> trainerService.changePassword("unknown", "old", "new"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Trainer not found: unknown");
+    }
+
+    @Test
+    void changePasswordThrowsWhenOldPasswordDoesNotMatch() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setPassword("oldPass123");
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        assertThatThrownBy(() -> trainerService.changePassword("John.Smith", "wrongPass", "newPass456"))
+                .isInstanceOf(AuthenticationException.class)
+                .hasMessageContaining("Old password does not match");
+    }
+
+    @Test
+    void changePasswordThrowsWhenNewPasswordIsBlank() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setPassword("oldPass123");
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        assertThatThrownBy(() -> trainerService.changePassword("John.Smith", "oldPass123", ""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("New password must not be blank");
+    }
+
+    @Test
+    void changePasswordThrowsWhenNewPasswordIsNull() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setPassword("oldPass123");
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        assertThatThrownBy(() -> trainerService.changePassword("John.Smith", "oldPass123", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("New password must not be blank");
+    }
+
+    @Test
+    void updateChangesNameAndUsername() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setUsername("John.Smith");
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+        when(usernameGenerator.generate("Johnny", "Smith")).thenReturn("Johnny.Smith");
+        when(trainingTypeDao.findByName("Yoga")).thenReturn(
+                TrainingType.builder().trainingTypeName("Yoga").build()
+        );
+
+        Trainer updatedData = Trainer.builder()
+                .user(User.builder()
+                        .firstName("Johnny")
+                        .lastName("Smith")
+                        .build())
+                .specialization(TrainingType.builder()
+                        .trainingTypeName("Yoga")
+                        .build())
+                .build();
+
+        Trainer result = trainerService.update("John.Smith", updatedData);
+
+        assertThat(result.getUser().getFirstName()).isEqualTo("Johnny");
+        assertThat(result.getUser().getLastName()).isEqualTo("Smith");
+        assertThat(result.getUser().getUsername()).isEqualTo("Johnny.Smith");
+        assertThat(result.getSpecialization().getTrainingTypeName()).isEqualTo("Yoga");
+    }
+
+    @Test
+    void updateKeepsSpecializationWhenNotProvided() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setUsername("John.Smith");
+        trainer.setSpecialization(boxing());
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+        when(usernameGenerator.generate("Johnny", "Smith")).thenReturn("Johnny.Smith");
+
+        Trainer updatedData = Trainer.builder()
+                .user(User.builder()
+                        .firstName("Johnny")
+                        .lastName("Smith")
+                        .build())
+                .build();
+
+        Trainer result = trainerService.update("John.Smith", updatedData);
+
+        assertThat(result.getSpecialization().getTrainingTypeName()).isEqualTo("Boxing");
+    }
+
+    @Test
+    void updateThrowsWhenTrainerNotFound() {
+        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        Trainer updatedData = Trainer.builder()
+                .user(User.builder()
+                        .firstName("Johnny")
+                        .lastName("Smith")
+                        .build())
+                .build();
+
+        assertThatThrownBy(() -> trainerService.update("unknown", updatedData))
+                .isInstanceOf(AuthenticationException.class)
+                .hasMessageContaining("Trainer not found: unknown");
+    }
+
+    @Test
+    void updateThrowsWhenFirstNameIsBlank() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setUsername("John.Smith");
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        Trainer updatedData = Trainer.builder()
+                .user(User.builder()
+                        .firstName("")
+                        .lastName("Smith")
+                        .build())
+                .build();
+
+        assertThatThrownBy(() -> trainerService.update("John.Smith", updatedData))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("First name and last name are required");
+    }
+
+    @Test
+    void updateThrowsWhenSpecializationNotFound() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setUsername("John.Smith");
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+        when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
+        when(trainingTypeDao.findByName("Unknown")).thenReturn(null);
+
+        Trainer updatedData = Trainer.builder()
+                .user(User.builder()
+                        .firstName("John")
+                        .lastName("Smith")
+                        .build())
+                .specialization(TrainingType.builder()
+                        .trainingTypeName("Unknown")
+                        .build())
+                .build();
+
+        assertThatThrownBy(() -> trainerService.update("John.Smith", updatedData))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Specialization not found: Unknown");
+    }
+
+    @Test
+    void setActiveDeactivatesTrainer() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setUsername("John.Smith");
+        trainer.getUser().setIsActive(true);
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        trainerService.setActive("John.Smith", false);
+
+        assertThat(trainer.getUser().getIsActive()).isFalse();
+    }
+
+    @Test
+    void setActiveActivatesTrainer() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setUsername("John.Smith");
+        trainer.getUser().setIsActive(false);
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        trainerService.setActive("John.Smith", true);
+
+        assertThat(trainer.getUser().getIsActive()).isTrue();
+    }
+
+    @Test
+    void setActiveThrowsWhenAlreadyActive() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setUsername("John.Smith");
+        trainer.getUser().setIsActive(true);
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        assertThatThrownBy(() -> trainerService.setActive("John.Smith", true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Trainer is already active");
+    }
+
+    @Test
+    void setActiveThrowsWhenAlreadyInactive() {
+        Trainer trainer = buildTrainer("John", "Smith", "Boxing");
+        trainer.getUser().setUsername("John.Smith");
+        trainer.getUser().setIsActive(false);
+        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
+
+        assertThatThrownBy(() -> trainerService.setActive("John.Smith", false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Trainer is already inactive");
+    }
+
     private void setupGenerators(String firstName, String lastName) {
         when(usernameGenerator.generate(firstName, lastName))
                 .thenReturn(firstName + "." + lastName);

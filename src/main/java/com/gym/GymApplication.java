@@ -60,6 +60,72 @@ public class GymApplication {
             traineeService.findByUsername(traineeUsername);
             trainerService.findByUsername(trainerUsername);
 
+            // Change Password  Trainer / Trainee
+            String newTraineePassword = "newPass456";
+            String newTrainerPassword = "newPass987";
+            traineeService.changePassword(traineeUsername, traineePassword, newTraineePassword);
+            trainerService.changePassword(trainerUsername, trainerPassword, newTrainerPassword);
+
+            // Update Trainee
+            Trainee traineeUpdate = Trainee.builder()
+                    .user(User.builder()
+                            .firstName("Johnny")
+                            .lastName("Doe")
+                            .build())
+                    .dateOfBirth(LocalDate.of(1990, 6, 15))
+                    .address("456 New St")
+                    .build();
+
+            Trainee updatedTrainee = traineeService.update(traineeUsername, traineeUpdate);
+            IO.println("Updated trainee username: " + updatedTrainee.getUser().getUsername());
+
+            // --- update trainer ---
+            Trainer trainerUpdate = Trainer.builder()
+                    .user(User.builder()
+                            .firstName("Nikoloz")
+                            .lastName("Doe")
+                            .build())
+                    .specialization(TrainingType.builder()
+                            .trainingTypeName("Yoga")
+                            .build())
+                    .build();
+
+            Trainer updatedTrainer = trainerService.update(trainerUsername, trainerUpdate);
+            IO.println("Updated trainer username: " + updatedTrainer.getUser().getUsername());
+
+            // setActive / deactivate
+            traineeService.setActive(updatedTrainee.getUser().getUsername(), false);
+
+            traineeService.setActive(updatedTrainee.getUser().getUsername(), true);
+
+            // test setActive same status throws
+            try {
+                traineeService.setActive(updatedTrainee.getUser().getUsername(), true);
+                IO.println("ERROR: should have thrown");
+            } catch (IllegalStateException e) {
+                IO.println("Caught expected: " + e.getMessage());
+            }
+
+            // deleteByUsername
+            traineeService.deleteByUsername(updatedTrainee.getUser().getUsername());
+            IO.println("Trainee deleted");
+
+            // verify deleted
+            try {
+                traineeService.findByUsername(updatedTrainee.getUser().getUsername());
+                IO.println("ERROR: should have thrown");
+            } catch (IllegalArgumentException e) {
+                IO.println("Caught expected: " + e.getMessage());
+            }
+
+            // logout and verify blocked
+            auth.logout();
+            try {
+                traineeService.findByUsername(traineeUsername);
+                System.out.println("ERROR: should have thrown");
+            } catch (Exception e) {
+                System.out.println("Unauthenticated access blocked: " + e.getMessage());
+            }
         }
     }
 }

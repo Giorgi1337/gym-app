@@ -1,6 +1,7 @@
 package com.gym.service;
 
 import com.gym.dao.TraineeDao;
+import com.gym.exception.AuthenticationException;
 import com.gym.model.Trainee;
 import com.gym.model.User;
 import com.gym.utils.PasswordGenerator;
@@ -178,6 +179,205 @@ public class TraineeServiceTest {
         when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> traineeService.findByUsername("unknown"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Trainee not found: unknown");
+    }
+
+    @Test
+    void changePasswordSucceeds() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setPassword("oldPass123");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        traineeService.changePassword("John.Smith", "oldPass123", "newPass456");
+
+        assertThat(trainee.getUser().getPassword()).isEqualTo("newPass456");
+    }
+
+    @Test
+    void changePasswordThrowsWhenTraineeNotFound() {
+        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> traineeService.changePassword("unknown", "old", "new"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Trainee not found: unknown");
+    }
+
+    @Test
+    void changePasswordThrowsWhenOldPasswordDoesNotMatch() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setPassword("oldPass123");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        assertThatThrownBy(() -> traineeService.changePassword("John.Smith", "wrongPass", "newPass456"))
+                .isInstanceOf(AuthenticationException.class)
+                .hasMessageContaining("Old password does not match");
+    }
+
+    @Test
+    void changePasswordThrowsWhenNewPasswordIsBlank() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setPassword("oldPass123");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        assertThatThrownBy(() -> traineeService.changePassword("John.Smith", "oldPass123", ""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("New password must not be blank");
+    }
+
+    @Test
+    void changePasswordThrowsWhenNewPasswordIsNull() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setPassword("oldPass123");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        assertThatThrownBy(() -> traineeService.changePassword("John.Smith", "oldPass123", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("New password must not be blank");
+    }
+
+    @Test
+    void updateChangesNameAndUsername() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+        when(usernameGenerator.generate("Johnny", "Smith")).thenReturn("Johnny.Smith");
+
+        Trainee updatedData = Trainee.builder()
+                .user(User.builder()
+                        .firstName("Johnny")
+                        .lastName("Smith")
+                        .build())
+                .dateOfBirth(LocalDate.of(1990, 6, 15))
+                .address("456 New St")
+                .build();
+
+        Trainee result = traineeService.update("John.Smith", updatedData);
+
+        assertThat(result.getUser().getFirstName()).isEqualTo("Johnny");
+        assertThat(result.getUser().getLastName()).isEqualTo("Smith");
+        assertThat(result.getUser().getUsername()).isEqualTo("Johnny.Smith");
+        assertThat(result.getAddress()).isEqualTo("456 New St");
+        assertThat(result.getDateOfBirth()).isEqualTo(LocalDate.of(1990, 6, 15));
+    }
+
+    @Test
+    void updateThrowsWhenTraineeNotFound() {
+        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        Trainee updatedData = Trainee.builder()
+                .user(User.builder()
+                        .firstName("Johnny")
+                        .lastName("Smith")
+                        .build())
+                .build();
+
+        assertThatThrownBy(() -> traineeService.update("unknown", updatedData))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Trainee not found: unknown");
+    }
+
+    @Test
+    void updateThrowsWhenFirstNameIsBlank() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        Trainee updatedData = Trainee.builder()
+                .user(User.builder()
+                        .firstName("")
+                        .lastName("Smith")
+                        .build())
+                .build();
+
+        assertThatThrownBy(() -> traineeService.update("John.Smith", updatedData))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("First name and last name are required");
+    }
+
+    @Test
+    void updateThrowsWhenDateOfBirthIsInFuture() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        Trainee updatedData = Trainee.builder()
+                .user(User.builder()
+                        .firstName("John")
+                        .lastName("Smith")
+                        .build())
+                .dateOfBirth(LocalDate.now().plusYears(1))
+                .build();
+
+        assertThatThrownBy(() -> traineeService.update("John.Smith", updatedData))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Date of birth must be in the past");
+    }
+
+    @Test
+    void setActiveDeactivatesTrainee() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        trainee.getUser().setIsActive(true);
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        traineeService.setActive("John.Smith", false);
+
+        assertThat(trainee.getUser().getIsActive()).isFalse();
+    }
+
+    @Test
+    void setActiveActivatesTrainee() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        trainee.getUser().setIsActive(false);
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        traineeService.setActive("John.Smith", true);
+
+        assertThat(trainee.getUser().getIsActive()).isTrue();
+    }
+
+    @Test
+    void setActiveThrowsWhenAlreadyActive() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        trainee.getUser().setIsActive(true);
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        assertThatThrownBy(() -> traineeService.setActive("John.Smith", true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Trainee is already active");
+    }
+
+    @Test
+    void setActiveThrowsWhenAlreadyInactive() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        trainee.getUser().setIsActive(false);
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        assertThatThrownBy(() -> traineeService.setActive("John.Smith", false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Trainee is already inactive");
+    }
+
+    @Test
+    void deleteByUsernameDeletesTrainee() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+
+        traineeService.deleteByUsername("John.Smith");
+
+        verify(traineeDao).delete(trainee);
+    }
+
+    @Test
+    void deleteByUsernameThrowsWhenNotFound() {
+        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> traineeService.deleteByUsername("unknown"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Trainee not found: unknown");
     }
