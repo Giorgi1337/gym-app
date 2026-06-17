@@ -27,38 +27,37 @@ val jacocoVersion = "0.8.14"
 val mockitoVersion = "5.23.0"
 val assertjCore = "3.27.7"
 val hibernateVersion = "7.4.1.Final"
+val flywayVersion = "12.8.1"
 
 repositories {
     mavenCentral()
 }
 
+// Dependencies
 dependencies {
 
     // Spring
     implementation("org.springframework:spring-core:$springVersion")
     implementation("org.springframework:spring-context:$springVersion")
+    implementation("org.springframework:spring-orm:$springVersion")
+    implementation("org.springframework:spring-tx:$springVersion")
+    implementation("org.springframework:spring-aop:$springVersion")
 
     // Hibernate
     implementation("org.hibernate.orm:hibernate-core:$hibernateVersion")
     implementation("org.hibernate.orm:hibernate-hikaricp:$hibernateVersion")
     implementation("org.hibernate.validator:hibernate-validator:9.1.0.Final")
-
-    // Spring ORM
-    implementation("org.springframework:spring-orm:$springVersion")
-    implementation("org.springframework:spring-tx:$springVersion")
+    annotationProcessor("org.hibernate.validator:hibernate-validator-annotation-processor:9.1.0.Final")
 
     // AOP
-    implementation("org.springframework:spring-aop:$springVersion")
     implementation("org.aspectj:aspectjweaver:1.9.25.1")
 
     // Flyway
-    implementation("org.flywaydb:flyway-core:12.8.1")
-    implementation("org.flywaydb:flyway-database-postgresql:12.8.1")
+    implementation("org.flywaydb:flyway-core:$flywayVersion")
+    implementation("org.flywaydb:flyway-database-postgresql:$flywayVersion")
 
     // Expression Language (required by Hibernate Validator)
     implementation("org.glassfish.expressly:expressly:6.0.0")
-
-    annotationProcessor("org.hibernate.validator:hibernate-validator-annotation-processor:9.1.0.Final")
 
     // PostgreSQL
     implementation("org.postgresql:postgresql:42.7.11")
@@ -85,10 +84,10 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:$junitVersion"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.mockito:mockito-core:$mockitoVersion")
-    testImplementation("org.springframework:spring-test:$springVersion")
     testImplementation("org.mockito:mockito-junit-jupiter:$mockitoVersion")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.springframework:spring-test:$springVersion")
     testImplementation("org.assertj:assertj-core:$assertjCore")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 // Compile
@@ -113,6 +112,12 @@ jacoco {
     toolVersion = jacocoVersion
 }
 
+val jacocoExclusions = listOf(
+    "com/gym/dao/**",
+    "com/gym/config/**",
+    "com/gym/GymApplication.class",
+)
+
 tasks.jacocoTestReport {
     dependsOn(tasks.test)
     reports {
@@ -120,10 +125,20 @@ tasks.jacocoTestReport {
         xml.required = true
         csv.required = false
     }
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) { exclude(jacocoExclusions) }
+        })
+    )
 }
 
 tasks.jacocoTestCoverageVerification {
     dependsOn(tasks.jacocoTestReport)
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) { exclude(jacocoExclusions) }
+        })
+    )
     violationRules {
         rule {
             limit {

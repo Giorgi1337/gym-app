@@ -85,8 +85,8 @@ public class AppConfig {
         props.setProperty("hibernate.hikari.maxLifetime", env.getRequiredProperty("hikari.maxLifetime"));
 
         props.setProperty("hibernate.dialect", env.getRequiredProperty("hibernate.dialect"));
-        props.setProperty("hibernate.show_sql", env.getRequiredProperty("hibernate.show_sql"));
-        props.setProperty("hibernate.format_sql", env.getRequiredProperty("hibernate.format_sql"));
+//        props.setProperty("hibernate.show_sql", env.getRequiredProperty("hibernate.show_sql"));
+//        props.setProperty("hibernate.format_sql", env.getRequiredProperty("hibernate.format_sql"));
         props.setProperty("hibernate.hbm2ddl.auto", env.getRequiredProperty("hibernate.hbm2ddl.auto"));
 
         return props;

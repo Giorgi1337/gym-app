@@ -1,8 +1,10 @@
 package com.gym.service;
 
 import com.gym.dao.TraineeDao;
+import com.gym.dao.TrainerDao;
 import com.gym.exception.AuthenticationException;
 import com.gym.model.Trainee;
+import com.gym.model.Trainer;
 import com.gym.model.User;
 import com.gym.security.RequiresAuthentication;
 import com.gym.utils.PasswordGenerator;
@@ -17,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static com.gym.utils.NameUtils.normalize;
@@ -27,11 +31,13 @@ public class TraineeService {
 
     private static final Logger log = LoggerFactory.getLogger(TraineeService.class);
 
+    private final TrainerDao trainerDao;
     private final TraineeDao traineeDao;
     private final UsernameGenerator usernameGenerator;
     private final Validator validator;
 
-    public TraineeService(TraineeDao traineeDao, UsernameGenerator usernameGenerator, Validator validator) {
+    public TraineeService(TrainerDao trainerDao, TraineeDao traineeDao, UsernameGenerator usernameGenerator, Validator validator) {
+        this.trainerDao = trainerDao;
         this.traineeDao = traineeDao;
         this.usernameGenerator = usernameGenerator;
         this.validator = validator;
@@ -156,6 +162,28 @@ public class TraineeService {
         traineeDao.delete(trainee);
 
         log.info("Trainee deleted successfully: {}", username);
+    }
+
+    @RequiresAuthentication
+    @Transactional(readOnly = true)
+    public List<Trainer> getUnassignedTrainers(final String traineeUsername) {
+        log.info("Fetching unassigned trainers for trainee: {}", traineeUsername);
+        return traineeDao.findUnassignedTrainers(traineeUsername);
+    }
+
+    @RequiresAuthentication
+    public void updateTrainersList(final String traineeUsername, final List<String> trainerUsernames) {
+        log.info("Updating trainers list for trainee: {}", traineeUsername);
+
+        Trainee trainee = findByUsername(traineeUsername);
+
+        List<Trainer> trainers = trainerUsernames.stream()
+                .map(username -> trainerDao.findByUserName(username)
+                        .orElseThrow(() -> new IllegalArgumentException("Trainer not found: " + username)))
+                .toList();
+
+        trainee.setTrainers(new HashSet<>(trainers));
+        log.info("Trainers list updated for trainee: {}", traineeUsername);
     }
 
 }

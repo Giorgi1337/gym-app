@@ -1,8 +1,11 @@
 package com.gym.service;
 
 import com.gym.dao.TraineeDao;
+import com.gym.dao.TrainerDao;
 import com.gym.exception.AuthenticationException;
 import com.gym.model.Trainee;
+import com.gym.model.Trainer;
+import com.gym.model.TrainingType;
 import com.gym.model.User;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
@@ -15,13 +18,17 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class TraineeServiceTest {
 
+    private TrainerDao trainerDao;
     private TraineeDao traineeDao;
     private TraineeService traineeService;
     private UsernameGenerator usernameGenerator;
@@ -30,10 +37,11 @@ public class TraineeServiceTest {
 
     @BeforeEach
     public void setup() {
+        trainerDao = mock(TrainerDao.class);
         validator = Validation.buildDefaultValidatorFactory().getValidator();
         traineeDao = mock(TraineeDao.class);
         usernameGenerator = mock(UsernameGenerator.class);
-        traineeService = new TraineeService(traineeDao, usernameGenerator, validator);
+        traineeService = new TraineeService(trainerDao, traineeDao, usernameGenerator, validator);
         passwordGenerator = mockStatic(PasswordGenerator.class);
     }
 
@@ -380,6 +388,96 @@ public class TraineeServiceTest {
         assertThatThrownBy(() -> traineeService.deleteByUsername("unknown"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Trainee not found: unknown");
+    }
+
+    @Test
+    void getUnassignedTrainersReturnsList() {
+        List<Trainer> trainers = List.of(
+                buildTrainerWithUsername("Nika.Doe"),
+                buildTrainerWithUsername("Giorgi.Smith")
+        );
+        when(traineeDao.findUnassignedTrainers("John.Smith")).thenReturn(trainers);
+
+        List<Trainer> result = traineeService.getUnassignedTrainers("John.Smith");
+
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(t -> t.getUser().getUsername())
+                .containsExactlyInAnyOrder("Nika.Doe", "Giorgi.Smith");
+    }
+
+    @Test
+    void getUnassignedTrainersReturnsEmptyWhenAllAssigned() {
+        when(traineeDao.findUnassignedTrainers("John.Smith")).thenReturn(List.of());
+
+        List<Trainer> result = traineeService.getUnassignedTrainers("John.Smith");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void updateTrainersListSetsTrainers() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainerWithUsername("Nika.Doe")));
+        when(trainerDao.findByUserName("Giorgi.Smith")).thenReturn(Optional.of(buildTrainerWithUsername("Giorgi.Smith")));
+
+        traineeService.updateTrainersList("John.Smith", List.of("Nika.Doe", "Giorgi.Smith"));
+
+        assertThat(trainee.getTrainers()).hasSize(2);
+        assertThat(trainee.getTrainers()).extracting(t -> t.getUser().getUsername())
+                .containsExactlyInAnyOrder("Nika.Doe", "Giorgi.Smith");
+    }
+
+    @Test
+    void updateTrainersListThrowsWhenTraineeNotFound() {
+        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> traineeService.updateTrainersList("unknown", List.of("Nika.Doe")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Trainee not found: unknown");
+    }
+
+    @Test
+    void updateTrainersListThrowsWhenTrainerNotFound() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> traineeService.updateTrainersList("John.Smith", List.of("unknown")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Trainer not found: unknown");
+    }
+
+    @Test
+    void updateTrainersListClearsExistingTrainers() {
+        Trainee trainee = buildTrainee("John", "Smith");
+        trainee.getUser().setUsername("John.Smith");
+        trainee.setTrainers(new HashSet<>(Set.of(buildTrainerWithUsername("Old.Trainer"))));
+        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainerWithUsername("Nika.Doe")));
+
+        traineeService.updateTrainersList("John.Smith", List.of("Nika.Doe"));
+
+        assertThat(trainee.getTrainers()).hasSize(1);
+        assertThat(trainee.getTrainers()).extracting(t -> t.getUser().getUsername())
+                .containsExactly("Nika.Doe");
+    }
+
+    private Trainer buildTrainerWithUsername(String username) {
+        return Trainer.builder()
+                .user(User.builder()
+                        .firstName("Nika")
+                        .lastName("Doe")
+                        .username(username)
+                        .password("pass123")
+                        .isActive(true)
+                        .build())
+                .specialization(TrainingType.builder()
+                        .trainingTypeName("Yoga")
+                        .build())
+                .build();
     }
 
     private void setupGenerators(String firstName, String lastName) {
