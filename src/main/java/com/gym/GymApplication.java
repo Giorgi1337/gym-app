@@ -1,11 +1,8 @@
 package com.gym;
 
 import com.gym.config.AppConfig;
+import com.gym.facade.GymFacade;
 import com.gym.model.*;
-import com.gym.service.AuthenticationService;
-import com.gym.service.TraineeService;
-import com.gym.service.TrainerService;
-import com.gym.service.TrainingService;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.time.LocalDate;
@@ -16,12 +13,9 @@ public class GymApplication {
     public static void main(String[] args) {
 
         try (var context = new AnnotationConfigApplicationContext(AppConfig.class)) {
-            TraineeService traineeService = context.getBean(TraineeService.class);
-            TrainerService trainerService = context.getBean(TrainerService.class);
-            AuthenticationService auth = context.getBean(AuthenticationService.class);
-            TrainingService trainingService = context.getBean(TrainingService.class);
+            GymFacade gym = context.getBean(GymFacade.class);
 
-            // --- create trainee ---
+            // Register trainee
             Trainee trainee = Trainee.builder()
                     .user(User.builder()
                             .firstName("John ")
@@ -32,12 +26,12 @@ public class GymApplication {
                     .address("123 Main St")
                     .build();
 
-            traineeService.save(trainee);
+            gym.registerTrainee(trainee);
+
             String traineeUsername = trainee.getUser().getUsername();
             String traineePassword = trainee.getUser().getPassword();
-            System.out.println("Created trainee: " + traineeUsername);
 
-            // --- create trainer ---
+            // Register trainer
             Trainer trainer = Trainer.builder()
                     .user(User.builder()
                             .firstName("Nika")
@@ -49,186 +43,55 @@ public class GymApplication {
                             .build())
                     .build();
 
-            trainerService.save(trainer);
+            gym.registerTrainer(trainer);
+
             String trainerUsername = trainer.getUser().getUsername();
             String trainerPassword = trainer.getUser().getPassword();
-            System.out.println("Created trainer: " + trainerUsername);
 
-            // --- login ---
-            auth.login(traineeUsername, traineePassword);
+            // Login as trainee
+            gym.login(traineeUsername, traineePassword);
             System.out.println("Logged in as: " + traineeUsername);
 
-            // --- find by username ---
-            Trainee foundTrainee = traineeService.findByUsername(traineeUsername);
+            // Fetch trainee profile
+            Trainee foundTrainee = gym.getTrainee(traineeUsername);
             System.out.println("Found trainee: " + foundTrainee.getUser().getFirstName()
                     + " " + foundTrainee.getUser().getLastName());
 
-            Trainer foundTrainer = trainerService.findByUsername(trainerUsername);
-            System.out.println("Found trainer: " + foundTrainer.getUser().getFirstName()
-                    + " " + foundTrainer.getUser().getLastName());
-
-            // --- change password ---
-            String newTraineePassword = "newPass456";
-            String newTrainerPassword = "newPass987";
-            traineeService.changePassword(traineeUsername, traineePassword, newTraineePassword);
-            System.out.println("Trainee password changed");
-
-            trainerService.changePassword(trainerUsername, trainerPassword, newTrainerPassword);
-            System.out.println("Trainer password changed");
-
-            // --- test wrong old password ---
-            try {
-                traineeService.changePassword(traineeUsername, "wrongPass", "anotherPass");
-                System.out.println("ERROR: should have thrown");
-            } catch (Exception e) {
-                System.out.println("Caught expected: " + e.getMessage());
-            }
-
-            // --- update trainee ---
-            Trainee traineeUpdate = Trainee.builder()
-                    .user(User.builder()
-                            .firstName("Johnny")
-                            .lastName("Doe")
-                            .build())
-                    .dateOfBirth(LocalDate.of(1990, 6, 15))
-                    .address("456 New St")
-                    .build();
-
-            Trainee updatedTrainee = traineeService.update(traineeUsername, traineeUpdate);
-            System.out.println("Updated trainee username: " + updatedTrainee.getUser().getUsername());
-
-            // --- update trainer ---
-            Trainer trainerUpdate = Trainer.builder()
-                    .user(User.builder()
-                            .firstName("Nikoloz")
-                            .lastName("Doe")
-                            .build())
-                    .specialization(TrainingType.builder()
-                            .trainingTypeName("Yoga")
-                            .build())
-                    .build();
-
-            Trainer updatedTrainer = trainerService.update(trainerUsername, trainerUpdate);
-            System.out.println("Updated trainer username: " + updatedTrainer.getUser().getUsername());
-
-            String updatedTraineeUsername = updatedTrainee.getUser().getUsername();
-            String updatedTrainerUsername = updatedTrainer.getUser().getUsername();
-
-            // --- setActive ---
-            traineeService.setActive(updatedTraineeUsername, false);
-            System.out.println("Trainee deactivated");
-
-            traineeService.setActive(updatedTraineeUsername, true);
-            System.out.println("Trainee activated");
-
-            // --- test setActive same status ---
-            try {
-                traineeService.setActive(updatedTraineeUsername, true);
-                System.out.println("ERROR: should have thrown");
-            } catch (IllegalStateException e) {
-                System.out.println("Caught expected: " + e.getMessage());
-            }
-
-            trainerService.setActive(updatedTrainerUsername, false);
-            System.out.println("Trainer deactivated");
-
-            trainerService.setActive(updatedTrainerUsername, true);
-            System.out.println("Trainer activated");
-
-            // --- get unassigned trainers ---
-            List<Trainer> unassigned = traineeService.getUnassignedTrainers(updatedTraineeUsername);
+            // Get unassigned trainers
+            List<Trainer> unassigned = gym.getUnassignedTrainers(traineeUsername);
             System.out.println("Unassigned trainers: " + unassigned.size());
-            unassigned.forEach(t -> System.out.println("  - " + t.getUser().getUsername()));
 
-            // --- update trainers list ---
-            traineeService.updateTrainersList(updatedTraineeUsername, List.of(updatedTrainerUsername));
-            System.out.println("Trainers list updated for: " + updatedTraineeUsername);
+            // Assign trainer to trainee
+            gym.updateTraineeTrainersList(traineeUsername, List.of(trainerUsername));
+            System.out.println("Assigned trainer: " + trainerUsername);
 
-            // --- add training ---
-            trainingService.addTraining(
-                    updatedTraineeUsername,
-                    updatedTrainerUsername,
-                    "Morning Yoga Session",
-                    "Yoga",
-                    LocalDate.now(),
-                    60
-            );
+            gym.addTraining(traineeUsername, trainerUsername,
+                    "Morning Cardio", "Cardio",
+                    LocalDate.now(), 60);
             System.out.println("Training added");
 
-            // --- add another training for filter testing ---
-            trainingService.addTraining(
-                    updatedTraineeUsername,
-                    updatedTrainerUsername,
-                    "Evening Yoga Session",
-                    "Yoga",
-                    LocalDate.now().minusDays(5),
-                    45
-            );
-            System.out.println("Second training added");
+            // Fetch trainee trainings
+            List<Training> traineeTrainings = gym.getTraineeTrainings(traineeUsername, null, null, null, null);
+            System.out.println("Trainee trainings: " + traineeTrainings.size());
 
-            // --- get trainee trainings no filter ---
-            List<Training> allTraineeTrainings = trainingService.getTraineeTrainings(
-                    updatedTraineeUsername, null, null, null, null
-            );
-            System.out.println("All trainee trainings: " + allTraineeTrainings.size());
-            allTraineeTrainings.forEach(t ->
-                    System.out.println("  - " + t.getTrainingName() + " on " + t.getTrainingDate()));
+            // login as trainer
+            gym.login(trainerUsername, trainerPassword);
+            System.out.println("Logged in as: " + trainerUsername);
 
-            // --- get trainee trainings with date filter ---
-            List<Training> filteredByDate = trainingService.getTraineeTrainings(
-                    updatedTraineeUsername,
-                    LocalDate.now().minusDays(1),
-                    LocalDate.now().plusDays(1),
-                    null,
-                    null
-            );
-            System.out.println("Trainee trainings (last 1 day): " + filteredByDate.size());
+            // Fetch trainer trainings
+            List<Training> trainerTrainings = gym.getTrainerTrainings(
+                    trainerUsername, null, null, null);
+            System.out.println("Trainer trainings: " + trainerTrainings.size());
 
-            // --- get trainee trainings with trainer filter ---
-            List<Training> filteredByTrainer = trainingService.getTraineeTrainings(
-                    updatedTraineeUsername, null, null, updatedTrainerUsername, null
-            );
-            System.out.println("Trainee trainings (by trainer): " + filteredByTrainer.size());
+            // Change trainer password
+            gym.changeTrainerPassword(trainerUsername, trainerPassword, "newSecurePass123");
+            System.out.println("Trainer password changed");
 
-            // --- get trainee trainings with type filter ---
-            List<Training> filteredByType = trainingService.getTraineeTrainings(
-                    updatedTraineeUsername, null, null, null, "Yoga"
-            );
-            System.out.println("Trainee trainings (Yoga): " + filteredByType.size());
-
-            // --- get trainer trainings no filter ---
-            List<Training> allTrainerTrainings = trainingService.getTrainerTrainings(
-                    updatedTrainerUsername, null, null, null
-            );
-            System.out.println("All trainer trainings: " + allTrainerTrainings.size());
-
-            // --- get trainer trainings with trainee filter ---
-            List<Training> trainerFilteredByTrainee = trainingService.getTrainerTrainings(
-                    updatedTrainerUsername, null, null, updatedTraineeUsername
-            );
-            System.out.println("Trainer trainings (by trainee): " + trainerFilteredByTrainee.size());
-
-            // --- delete trainee ---
-            traineeService.deleteByUsername(updatedTraineeUsername);
-            System.out.println("Trainee deleted");
-
-
-            // --- verify deleted ---
-            try {
-                traineeService.findByUsername(updatedTraineeUsername);
-                System.out.println("ERROR: should have thrown");
-            } catch (IllegalArgumentException e) {
-                System.out.println("Caught expected: " + e.getMessage());
-            }
-
-            // --- logout and verify blocked ---
-            auth.logout();
-            try {
-                trainerService.findByUsername(updatedTrainerUsername);
-                System.out.println("ERROR: should have thrown");
-            } catch (Exception e) {
-                System.out.println("Unauthenticated access blocked: " + e.getMessage());
-            }
+            // Deactivate trainee
+            gym.logout();
+            gym.login(traineeUsername, traineePassword);
+            gym.setTraineeActive(traineeUsername, false);
+            System.out.println("Trainee deactivated");
         }
     }
 }

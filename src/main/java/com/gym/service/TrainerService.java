@@ -3,7 +3,6 @@ package com.gym.service;
 import com.gym.dao.TrainerDao;
 import com.gym.dao.TrainingTypeDao;
 import com.gym.exception.AuthenticationException;
-import com.gym.model.Trainee;
 import com.gym.model.Trainer;
 import com.gym.model.TrainingType;
 import com.gym.model.User;
