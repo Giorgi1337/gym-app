@@ -7,8 +7,6 @@ import java.util.stream.Collectors;
 
 public final class NameUtils {
 
-    public static final String NAME_REGEX = "^[A-Za-zÀ-ÖØ-öø-ÿ]{2,}(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿ]{2,})*$";
-
     private NameUtils() {}
 
     public static String normalize(String name) {
@@ -18,5 +16,9 @@ public final class NameUtils {
         return Arrays.stream(trimmed.split(" "))
                 .map(word -> StringUtils.capitalize(word.toLowerCase()))
                 .collect(Collectors.joining(" "));
+    }
+
+    public static String fullName(String firstName, String lastName) {
+        return firstName + " " + lastName;
     }
 }

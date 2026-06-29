@@ -4,12 +4,16 @@ import com.gym.dao.TraineeDao;
 import com.gym.dao.TrainerDao;
 import com.gym.dao.TrainingDao;
 import com.gym.dao.TrainingTypeDao;
+import com.gym.dto.training.AddTrainingRequest;
+import com.gym.dto.training.TraineeTrainingResponse;
+import com.gym.dto.training.TrainerTrainingResponse;
+import com.gym.dto.training.TrainingTypeResponse;
+import com.gym.exception.ResourceNotFoundException;
+import com.gym.mapper.TrainingMapper;
+import com.gym.mapper.TrainingTypeMapper;
 import com.gym.model.Trainee;
 import com.gym.model.Trainer;
 import com.gym.model.Training;
-import com.gym.model.TrainingType;
-import com.gym.security.RequiresAuthentication;
-import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -28,73 +32,66 @@ public class TrainingService {
     private final TraineeDao traineeDao;
     private final TrainerDao trainerDao;
     private final TrainingTypeDao trainingTypeDao;
-    private final Validator validator;
 
-    public TrainingService(TrainingDao trainingDao, TraineeDao traineeDao, TrainerDao trainerDao, TrainingTypeDao trainingTypeDao, Validator validator) {
+    public TrainingService(TrainingDao trainingDao, TraineeDao traineeDao, TrainerDao trainerDao, TrainingTypeDao trainingTypeDao) {
         this.trainingDao = trainingDao;
         this.traineeDao = traineeDao;
         this.trainerDao = trainerDao;
         this.trainingTypeDao = trainingTypeDao;
-        this.validator = validator;
     }
 
-    @RequiresAuthentication
-    public void addTraining(String traineeUsername, String trainerUsername,
-                            String trainingName, String trainingTypeName,
-                            LocalDate trainingDate, int trainingDuration) {
-        log.info("Adding training '{}' for trainee: {}", trainingName, traineeUsername);
+    @Transactional(readOnly = true)
+    public List<TraineeTrainingResponse> getTraineeTrainings(
+            String username,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String trainerName,
+            String trainingType) {
 
-        Trainee trainee = traineeDao.findByUserName(traineeUsername)
-                .orElseThrow(() -> new IllegalArgumentException("Trainee not found: " + traineeUsername));
+        traineeDao.getProfile(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
 
+        return trainingDao.findByTraineeUsername(username, fromDate, toDate, trainerName, trainingType)
+                .stream()
+                .map(TrainingMapper::toTraineeView)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TrainerTrainingResponse> getTrainerTrainings(
+            String username,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String traineeName) {
+
+        trainerDao.findByUserName(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainer not found: " + username));
+
+        return trainingDao.findByTrainerUsername(username, fromDate, toDate, traineeName)
+                .stream()
+                .map(TrainingMapper::toTrainerView)
+                .toList();
+    }
+
+    @Transactional
+    public void addTraining(String trainerUsername, String traineeUsername, AddTrainingRequest request) {
         Trainer trainer = trainerDao.findByUserName(trainerUsername)
-                .orElseThrow(() -> new IllegalArgumentException("Trainer not found: " + trainerUsername));
+                .orElseThrow(() -> new ResourceNotFoundException("Trainer not found: " + trainerUsername));
 
-        TrainingType trainingType = trainingTypeDao.findByName(trainingTypeName);
-        if (trainingType == null) {
-            throw new IllegalArgumentException("Training type not found: " + trainingTypeName);
-        }
+        Trainee trainee = traineeDao.getProfile(traineeUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + traineeUsername));
 
-        if (trainingDate == null) {
-            throw new IllegalArgumentException("Training date is required");
-        }
-
-        if (trainingName == null || trainingName.isBlank()) {
-            throw new IllegalArgumentException("Training name is required");
-        }
-
-        if (trainingDuration < 1) {
-            throw new IllegalArgumentException("Duration must be positive");
-        }
-
-        Training training = Training.builder()
-                .trainee(trainee)
-                .trainer(trainer)
-                .trainingName(trainingName)
-                .trainingType(trainingType)
-                .trainingDate(trainingDate)
-                .trainingDuration(trainingDuration)
-                .build();
-
+        Training training = TrainingMapper.toEntity(request, trainee, trainer);
         trainingDao.save(training);
-        log.info("Training '{}' added successfully", trainingName);
+
+        log.info("Added training '{}' for trainer={} trainee={}",
+                request.trainingName(), trainerUsername, traineeUsername);
     }
 
-    @RequiresAuthentication
     @Transactional(readOnly = true)
-    public List<Training> getTraineeTrainings(String traineeUsername,
-                                              LocalDate fromDate, LocalDate toDate,
-                                              String trainerName, String trainingType) {
-        log.info("Fetching trainings for trainee: {}", traineeUsername);
-        return trainingDao.findByTraineeUsername(traineeUsername, fromDate, toDate, trainerName, trainingType);
-    }
-
-    @RequiresAuthentication
-    @Transactional(readOnly = true)
-    public List<Training> getTrainerTrainings(String trainerUsername,
-                                              LocalDate fromDate, LocalDate toDate,
-                                              String traineeName) {
-        log.info("Fetching trainings for trainer: {}", trainerUsername);
-        return trainingDao.findByTrainerUsername(trainerUsername, fromDate, toDate, traineeName);
+    public List<TrainingTypeResponse> getTrainingTypes() {
+        return trainingTypeDao.findAll().stream()
+                .map(TrainingTypeMapper::toResponse)
+                .toList();
     }
 }

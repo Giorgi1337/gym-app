@@ -1,97 +1,53 @@
 package com.gym;
 
 import com.gym.config.AppConfig;
-import com.gym.facade.GymFacade;
-import com.gym.model.*;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-
-import java.time.LocalDate;
-import java.util.List;
+import com.gym.config.WebConfig;
+import com.gym.filter.RequestResponseLoggingFilter;
+import com.gym.filter.TransactionIdFilter;
+import jakarta.servlet.Filter;
+import org.apache.catalina.Context;
+import org.apache.catalina.startup.Tomcat;
+import org.apache.tomcat.util.descriptor.web.FilterDef;
+import org.apache.tomcat.util.descriptor.web.FilterMap;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+import org.springframework.web.servlet.DispatcherServlet;
 
 public class GymApplication {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
 
-        try (var context = new AnnotationConfigApplicationContext(AppConfig.class)) {
-            GymFacade gym = context.getBean(GymFacade.class);
+        Tomcat tomcat = new Tomcat();
+        tomcat.setPort(8080);
+        tomcat.getConnector();
 
-            // Register trainee
-            Trainee trainee = Trainee.builder()
-                    .user(User.builder()
-                            .firstName("John ")
-                            .lastName("Doe")
-                            .isActive(true)
-                            .build())
-                    .dateOfBirth(LocalDate.of(1994, 12, 13))
-                    .address("123 Main St")
-                    .build();
+        Context context = tomcat.addContext("", System.getProperty("java.io.tmpdir"));
 
-            gym.registerTrainee(trainee);
+        // Order matters: transactionId must be established before request/response
+        // logging runs, so every REQUEST/RESPONSE log line carries it via MDC.
+        registerFilter(context, "transactionIdFilter", new TransactionIdFilter());
+        registerFilter(context, "requestResponseLoggingFilter", new RequestResponseLoggingFilter());
 
-            String traineeUsername = trainee.getUser().getUsername();
-            String traineePassword = trainee.getUser().getPassword();
+        AnnotationConfigWebApplicationContext appContext = new AnnotationConfigWebApplicationContext();
+        appContext.register(AppConfig.class, WebConfig.class);
 
-            // Register trainer
-            Trainer trainer = Trainer.builder()
-                    .user(User.builder()
-                            .firstName("Nika")
-                            .lastName("Doe")
-                            .isActive(true)
-                            .build())
-                    .specialization(TrainingType.builder()
-                            .trainingTypeName("Boxing")
-                            .build())
-                    .build();
+        DispatcherServlet dispatcherServlet = new DispatcherServlet(appContext);
+        tomcat.addServlet("", "dispatcher", dispatcherServlet);
+        context.addServletMappingDecoded("/", "dispatcher");
 
-            gym.registerTrainer(trainer);
+        System.out.println("Starting Gym CRM Application on port 8080...");
+        tomcat.start();
+        tomcat.getServer().await();
+    }
 
-            String trainerUsername = trainer.getUser().getUsername();
-            String trainerPassword = trainer.getUser().getPassword();
+    private static void registerFilter(Context context, String name, Filter filter) {
+        FilterDef filterDef = new FilterDef();
+        filterDef.setFilterName(name);
+        filterDef.setFilter(filter);
+        context.addFilterDef(filterDef);
 
-            // Login as trainee
-            gym.login(traineeUsername, traineePassword);
-            System.out.println("Logged in as: " + traineeUsername);
-
-            // Fetch trainee profile
-            Trainee foundTrainee = gym.getTrainee(traineeUsername);
-            System.out.println("Found trainee: " + foundTrainee.getUser().getFirstName()
-                    + " " + foundTrainee.getUser().getLastName());
-
-            // Get unassigned trainers
-            List<Trainer> unassigned = gym.getUnassignedTrainers(traineeUsername);
-            System.out.println("Unassigned trainers: " + unassigned.size());
-
-            // Assign trainer to trainee
-            gym.updateTraineeTrainersList(traineeUsername, List.of(trainerUsername));
-            System.out.println("Assigned trainer: " + trainerUsername);
-
-            gym.addTraining(traineeUsername, trainerUsername,
-                    "Morning Cardio", "Cardio",
-                    LocalDate.now(), 60);
-            System.out.println("Training added");
-
-            // Fetch trainee trainings
-            List<Training> traineeTrainings = gym.getTraineeTrainings(traineeUsername, null, null, null, null);
-            System.out.println("Trainee trainings: " + traineeTrainings.size());
-
-            // login as trainer
-            gym.login(trainerUsername, trainerPassword);
-            System.out.println("Logged in as: " + trainerUsername);
-
-            // Fetch trainer trainings
-            List<Training> trainerTrainings = gym.getTrainerTrainings(
-                    trainerUsername, null, null, null);
-            System.out.println("Trainer trainings: " + trainerTrainings.size());
-
-            // Change trainer password
-            gym.changeTrainerPassword(trainerUsername, trainerPassword, "newSecurePass123");
-            System.out.println("Trainer password changed");
-
-            // Deactivate trainee
-            gym.logout();
-            gym.login(traineeUsername, traineePassword);
-            gym.setTraineeActive(traineeUsername, false);
-            System.out.println("Trainee deactivated");
-        }
+        FilterMap filterMap = new FilterMap();
+        filterMap.setFilterName(name);
+        filterMap.addURLPattern("/*");
+        context.addFilterMap(filterMap);
     }
 }

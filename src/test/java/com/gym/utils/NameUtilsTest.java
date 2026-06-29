@@ -13,4 +13,10 @@ public class NameUtilsTest {
                 .isEqualTo("John Doe");
     }
 
+    @Test
+    void fullName() {
+        assertThat(NameUtils.fullName("John", "Doe"))
+                .isEqualTo("John Doe");
+    }
+
 }

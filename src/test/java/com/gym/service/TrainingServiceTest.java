@@ -4,26 +4,40 @@ import com.gym.dao.TraineeDao;
 import com.gym.dao.TrainerDao;
 import com.gym.dao.TrainingDao;
 import com.gym.dao.TrainingTypeDao;
-import com.gym.model.*;
-import jakarta.validation.Validation;
-import jakarta.validation.Validator;
+import com.gym.dto.training.AddTrainingRequest;
+import com.gym.dto.training.TraineeTrainingResponse;
+import com.gym.dto.training.TrainerTrainingResponse;
+import com.gym.dto.training.TrainingTypeResponse;
+import com.gym.exception.ResourceNotFoundException;
+import com.gym.mapper.TrainingMapper;
+import com.gym.mapper.TrainingTypeMapper;
+import com.gym.model.Trainee;
+import com.gym.model.Trainer;
+import com.gym.model.Training;
+import com.gym.model.TrainingType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 public class TrainingServiceTest {
 
-    private TrainingService trainingService;
     private TrainingDao trainingDao;
     private TraineeDao traineeDao;
     private TrainerDao trainerDao;
     private TrainingTypeDao trainingTypeDao;
+    private TrainingService trainingService;
+
+    private MockedStatic<TrainingMapper> trainingMapperMock;
+    private MockedStatic<TrainingTypeMapper> trainingTypeMapperMock;
 
     @BeforeEach
     void setup() {
@@ -31,199 +45,145 @@ public class TrainingServiceTest {
         traineeDao = mock(TraineeDao.class);
         trainerDao = mock(TrainerDao.class);
         trainingTypeDao = mock(TrainingTypeDao.class);
-        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-        trainingService = new TrainingService(trainingDao, traineeDao, trainerDao, trainingTypeDao, validator);
+
+        trainingService = new TrainingService(trainingDao, traineeDao, trainerDao, trainingTypeDao);
+
+        trainingMapperMock = mockStatic(TrainingMapper.class);
+        trainingTypeMapperMock = mockStatic(TrainingTypeMapper.class);
+    }
+
+    @AfterEach
+    void tearDown() {
+        trainingMapperMock.close();
+        trainingTypeMapperMock.close();
     }
 
     @Test
-    void addTrainingSucceeds() {
-        when(traineeDao.findByUserName("John.Doe")).thenReturn(Optional.of(buildTrainee("John.Doe")));
-        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainer("Nika.Doe")));
-        when(trainingTypeDao.findByName("Yoga")).thenReturn(buildTrainingType("Yoga"));
+    void getTraineeTrainingsReturnsMappedListWhenTraineeExists() {
+        String username = "john.doe";
+        LocalDate from = LocalDate.now().minusDays(1);
+        LocalDate to = LocalDate.now();
+        String trainerName = "trainer";
+        String type = "Yoga";
 
-        trainingService.addTraining("John.Doe", "Nika.Doe", "Morning Yoga", "Yoga", LocalDate.now(), 60);
+        Trainee trainee = new Trainee();
+        Training training = new Training();
+        TraineeTrainingResponse expectedResponse = mock(TraineeTrainingResponse.class);
 
-        verify(trainingDao).save(any(Training.class));
+        when(traineeDao.getProfile(username)).thenReturn(Optional.of(trainee));
+        when(trainingDao.findByTraineeUsername(username, from, to, trainerName, type)).thenReturn(List.of(training));
+        trainingMapperMock.when(() -> TrainingMapper.toTraineeView(training)).thenReturn(expectedResponse);
+
+        List<TraineeTrainingResponse> results = trainingService.getTraineeTrainings(username, from, to, trainerName, type);
+
+        assertThat(results).containsExactly(expectedResponse);
     }
 
     @Test
-    void addTrainingThrowsWhenTraineeNotFound() {
-        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
+    void getTraineeTrainingsThrowsResourceNotFoundExceptionWhenTraineeMissing() {
+        String username = "unknown";
+        when(traineeDao.getProfile(username)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> trainingService.addTraining(
-                "unknown", "Nika.Doe", "Morning Yoga", "Yoga", LocalDate.now(), 60))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Trainee not found: unknown");
+        assertThatThrownBy(() -> trainingService.getTraineeTrainings(username, null, null, null, null))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Trainee not found: " + username);
+
+        verifyNoInteractions(trainingDao);
     }
 
     @Test
-    void addTrainingThrowsWhenTrainerNotFound() {
-        when(traineeDao.findByUserName("John.Doe")).thenReturn(Optional.of(buildTrainee("John.Doe")));
-        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+    void getTrainerTrainingsReturnsMappedListWhenTrainerExists() {
+        String username = "nika.doe";
+        LocalDate from = LocalDate.now().minusDays(1);
+        LocalDate to = LocalDate.now();
+        String traineeName = "trainee";
 
-        assertThatThrownBy(() -> trainingService.addTraining(
-                "John.Doe", "unknown", "Morning Yoga", "Yoga", LocalDate.now(), 60))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Trainer not found: unknown");
+        Trainer trainer = new Trainer();
+        Training training = new Training();
+        TrainerTrainingResponse expectedResponse = mock(TrainerTrainingResponse.class);
+
+        when(trainerDao.findByUserName(username)).thenReturn(Optional.of(trainer));
+        when(trainingDao.findByTrainerUsername(username, from, to, traineeName)).thenReturn(List.of(training));
+        trainingMapperMock.when(() -> TrainingMapper.toTrainerView(training)).thenReturn(expectedResponse);
+
+        List<TrainerTrainingResponse> results = trainingService.getTrainerTrainings(username, from, to, traineeName);
+
+        assertThat(results).containsExactly(expectedResponse);
     }
 
     @Test
-    void addTrainingThrowsWhenTrainingTypeNotFound() {
-        when(traineeDao.findByUserName("John.Doe")).thenReturn(Optional.of(buildTrainee("John.Doe")));
-        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainer("Nika.Doe")));
-        when(trainingTypeDao.findByName("Unknown")).thenReturn(null);
+    void getTrainerTrainingsThrowsResourceNotFoundExceptionWhenTrainerMissing() {
+        String username = "unknown";
+        when(trainerDao.findByUserName(username)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> trainingService.addTraining(
-                "John.Doe", "Nika.Doe", "Morning Yoga", "Unknown", LocalDate.now(), 60))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Training type not found: Unknown");
+        assertThatThrownBy(() -> trainingService.getTrainerTrainings(username, null, null, null))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Trainer not found: " + username);
+
+        verifyNoInteractions(trainingDao);
     }
 
     @Test
-    void addTrainingThrowsWhenDateIsNull() {
-        when(traineeDao.findByUserName("John.Doe")).thenReturn(Optional.of(buildTrainee("John.Doe")));
-        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainer("Nika.Doe")));
-        when(trainingTypeDao.findByName("Yoga")).thenReturn(buildTrainingType("Yoga"));
+    void addTrainingSucceedsWhenBothEntitiesExist() {
+        String trainerUsername = "nika.doe";
+        String traineeUsername = "john.doe";
+        AddTrainingRequest request = mock(AddTrainingRequest.class);
 
-        assertThatThrownBy(() -> trainingService.addTraining(
-                "John.Doe", "Nika.Doe", "Morning Yoga", "Yoga", null, 60))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Training date is required");
+        Trainer trainer = new Trainer();
+        Trainee trainee = new Trainee();
+        Training training = new Training();
+
+        when(trainerDao.findByUserName(trainerUsername)).thenReturn(Optional.of(trainer));
+        when(traineeDao.getProfile(traineeUsername)).thenReturn(Optional.of(trainee));
+        trainingMapperMock.when(() -> TrainingMapper.toEntity(request, trainee, trainer)).thenReturn(training);
+
+        trainingService.addTraining(trainerUsername, traineeUsername, request);
+
+        verify(trainingDao).save(training);
     }
 
     @Test
-    void addTrainingThrowsWhenNameIsBlank() {
-        when(traineeDao.findByUserName("John.Doe")).thenReturn(Optional.of(buildTrainee("John.Doe")));
-        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainer("Nika.Doe")));
-        when(trainingTypeDao.findByName("Yoga")).thenReturn(buildTrainingType("Yoga"));
+    void addTrainingThrowsResourceNotFoundExceptionWhenTrainerNotFound() {
+        String trainerUsername = "unknown";
+        String traineeUsername = "john.doe";
+        AddTrainingRequest request = mock(AddTrainingRequest.class);
 
-        assertThatThrownBy(() -> trainingService.addTraining(
-                "John.Doe", "Nika.Doe", "", "Yoga", LocalDate.now(), 60))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Training name is required");
+        when(trainerDao.findByUserName(trainerUsername)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> trainingService.addTraining(trainerUsername, traineeUsername, request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Trainer not found: " + trainerUsername);
+
+        verifyNoInteractions(traineeDao, trainingDao);
     }
 
     @Test
-    void addTrainingThrowsWhenDurationIsZero() {
-        when(traineeDao.findByUserName("John.Doe")).thenReturn(Optional.of(buildTrainee("John.Doe")));
-        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainer("Nika.Doe")));
-        when(trainingTypeDao.findByName("Yoga")).thenReturn(buildTrainingType("Yoga"));
+    void addTrainingThrowsResourceNotFoundExceptionWhenTraineeNotFound() {
+        String trainerUsername = "nika.doe";
+        String traineeUsername = "unknown";
+        AddTrainingRequest request = mock(AddTrainingRequest.class);
+        Trainer trainer = new Trainer();
 
-        assertThatThrownBy(() -> trainingService.addTraining(
-                "John.Doe", "Nika.Doe", "Morning Yoga", "Yoga", LocalDate.now(), 0))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Duration must be positive");
+        when(trainerDao.findByUserName(trainerUsername)).thenReturn(Optional.of(trainer));
+        when(traineeDao.getProfile(traineeUsername)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> trainingService.addTraining(trainerUsername, traineeUsername, request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Trainee not found: " + traineeUsername);
+
+        verify(trainingDao, never()).save(any());
     }
 
     @Test
-    void getTraineeTrainingsReturnsResults() {
-        List<Training> trainings = List.of(
-                buildTraining("Morning Yoga", LocalDate.now()),
-                buildTraining("Evening Yoga", LocalDate.now().minusDays(5))
-        );
-        when(trainingDao.findByTraineeUsername("John.Doe", null, null, null, null))
-                .thenReturn(trainings);
+    void getTrainingTypesReturnsMappedResponseList() {
+        TrainingType type = new TrainingType();
+        TrainingTypeResponse expectedResponse = mock(TrainingTypeResponse.class);
 
-        List<Training> result = trainingService.getTraineeTrainings("John.Doe", null, null, null, null);
+        when(trainingTypeDao.findAll()).thenReturn(List.of(type));
+        trainingTypeMapperMock.when(() -> TrainingTypeMapper.toResponse(type)).thenReturn(expectedResponse);
 
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(Training::getTrainingName)
-                .containsExactlyInAnyOrder("Morning Yoga", "Evening Yoga");
-    }
+        List<TrainingTypeResponse> results = trainingService.getTrainingTypes();
 
-    @Test
-    void getTraineeTrainingsPassesFiltersToDao() {
-        LocalDate from = LocalDate.of(2026, 1, 1);
-        LocalDate to = LocalDate.of(2026, 6, 30);
-        when(trainingDao.findByTraineeUsername("John.Doe", from, to, "Nika.Doe", "Yoga"))
-                .thenReturn(List.of());
-
-        trainingService.getTraineeTrainings("John.Doe", from, to, "Nika.Doe", "Yoga");
-
-        verify(trainingDao).findByTraineeUsername("John.Doe", from, to, "Nika.Doe", "Yoga");
-    }
-
-    @Test
-    void getTraineeTrainingsReturnsEmptyWhenNoMatch() {
-        when(trainingDao.findByTraineeUsername("John.Doe", null, null, null, null))
-                .thenReturn(List.of());
-
-        List<Training> result = trainingService.getTraineeTrainings("John.Doe", null, null, null, null);
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    void getTrainerTrainingsReturnsResults() {
-        List<Training> trainings = List.of(
-                buildTraining("Morning Yoga", LocalDate.now())
-        );
-        when(trainingDao.findByTrainerUsername("Nika.Doe", null, null, null))
-                .thenReturn(trainings);
-
-        List<Training> result = trainingService.getTrainerTrainings("Nika.Doe", null, null, null);
-
-        assertThat(result).hasSize(1);
-    }
-
-    @Test
-    void getTrainerTrainingsPassesFiltersToDao() {
-        LocalDate from = LocalDate.of(2026, 1, 1);
-        LocalDate to = LocalDate.of(2026, 6, 30);
-        when(trainingDao.findByTrainerUsername("Nika.Doe", from, to, "John.Doe"))
-                .thenReturn(List.of());
-
-        trainingService.getTrainerTrainings("Nika.Doe", from, to, "John.Doe");
-
-        verify(trainingDao).findByTrainerUsername("Nika.Doe", from, to, "John.Doe");
-    }
-
-    @Test
-    void getTrainerTrainingsReturnsEmptyWhenNoMatch() {
-        when(trainingDao.findByTrainerUsername("Nika.Doe", null, null, null))
-                .thenReturn(List.of());
-
-        List<Training> result = trainingService.getTrainerTrainings("Nika.Doe", null, null, null);
-
-        assertThat(result).isEmpty();
-    }
-
-    private Trainee buildTrainee(String username) {
-        return Trainee.builder()
-                .user(User.builder()
-                        .firstName("John")
-                        .lastName("Doe")
-                        .username(username)
-                        .password("pass123")
-                        .isActive(true)
-                        .build())
-                .dateOfBirth(LocalDate.of(1999, 5, 6))
-                .build();
-    }
-
-    private Trainer buildTrainer(String username) {
-        return Trainer.builder()
-                .user(User.builder()
-                        .firstName("Nika")
-                        .lastName("Doe")
-                        .username(username)
-                        .password("pass123")
-                        .isActive(true)
-                        .build())
-                .specialization(buildTrainingType("Yoga"))
-                .build();
-    }
-
-    private TrainingType buildTrainingType(String name) {
-        return TrainingType.builder().trainingTypeName(name).build();
-    }
-
-    private Training buildTraining(String name, LocalDate date) {
-        return Training.builder()
-                .trainingName(name)
-                .trainingDate(date)
-                .trainingDuration(60)
-                .trainingType(buildTrainingType("Yoga"))
-                .build();
+        assertThat(results).containsExactly(expectedResponse);
     }
 }

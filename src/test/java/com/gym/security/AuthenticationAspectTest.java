@@ -1,73 +1,65 @@
 package com.gym.security;
 
-import com.gym.exception.AuthenticationException;
+import com.gym.exception.AuthenticationFailedException;
+import com.gym.service.AuthenticationService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestConstructor;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
-@ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = AuthenticationAspectTest.TestConfig.class)
-@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
-public class AuthenticationAspectTest {
+@ExtendWith(MockitoExtension.class)
+class AuthenticationAspectTest {
 
-    private final DummyService dummyService;
+    @Mock
+    private AuthenticationService authenticationService;
 
-    public AuthenticationAspectTest(DummyService dummyService) {
-        this.dummyService = dummyService;
+    @InjectMocks
+    private AuthenticationAspect authenticationAspect;
+
+    @BeforeEach
+    void setupRequest() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Username", "John.Doe");
+        request.addHeader("X-Password", "pass123");
+        request.setMethod("POST");
+        request.setRequestURI("/api/gym/exercise");
+
+        RequestContextHolder.setRequestAttributes(
+                new ServletRequestAttributes(request));
     }
 
     @AfterEach
     void tearDown() {
-        SecurityContext.clear();
+        RequestContextHolder.resetRequestAttributes();
     }
 
     @Test
-    void throwsWhenNotAuthenticated() {
-        assertThatThrownBy(dummyService::protectedMethod)
-                .isInstanceOf(AuthenticationException.class)
-                .hasMessageContaining("No authenticated user in context");
+    void AuthWithValidCredentialsSuccessfully() {
+        assertThatNoException()
+                .isThrownBy(() -> authenticationAspect.checkAuth());
+
+        verify(authenticationService).login("John.Doe", "pass123");
     }
 
     @Test
-    void succeedsWhenAuthenticated() {
-        SecurityContext.setCurrentUsername("John.Doe");
+    void AuthWithInvalidCredentialsPropagatesAuthenticationException() {
+        doThrow(new AuthenticationFailedException("Invalid username or password"))
+                .when(authenticationService)
+                .login("John.Doe", "pass123");
 
-        assertThatNoException().isThrownBy(dummyService::protectedMethod);
-    }
 
-    @Test
-    void unprotectedMethodPassesWithoutAuth() {
-        assertThatNoException().isThrownBy(dummyService::unprotectedMethod);
-    }
-
-    @Configuration
-    @EnableAspectJAutoProxy
-    static class TestConfig {
-
-        @Bean
-        public AuthenticationAspect authenticationAspect() {
-            return new AuthenticationAspect();
-        }
-
-        @Bean
-        public DummyService dummyService() {
-            return new DummyService();
-        }
-    }
-
-    static class DummyService {
-
-        @RequiresAuthentication
-        public void protectedMethod() {}
-
-        public void unprotectedMethod() {}
+        assertThatThrownBy(() -> authenticationAspect.checkAuth())
+                .isInstanceOf(AuthenticationFailedException.class)
+                .hasMessage("Invalid username or password");
     }
 }

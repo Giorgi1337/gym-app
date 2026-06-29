@@ -2,498 +2,219 @@ package com.gym.service;
 
 import com.gym.dao.TraineeDao;
 import com.gym.dao.TrainerDao;
-import com.gym.exception.AuthenticationException;
+import com.gym.dto.RegistrationResponse;
+import com.gym.dto.trainee.*;
+import com.gym.exception.ResourceNotFoundException;
+import com.gym.mapper.TraineeMapper;
+import com.gym.mapper.TrainerMapper;
 import com.gym.model.Trainee;
 import com.gym.model.Trainer;
-import com.gym.model.TrainingType;
 import com.gym.model.User;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
-import jakarta.validation.Validation;
-import jakarta.validation.Validator;
-import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
-import java.time.LocalDate;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 public class TraineeServiceTest {
 
-    private TrainerDao trainerDao;
     private TraineeDao traineeDao;
-    private TraineeService traineeService;
+    private TrainerDao trainerDao;
     private UsernameGenerator usernameGenerator;
-    private MockedStatic<PasswordGenerator> passwordGenerator;
-    private Validator validator;
+    private TraineeService traineeService;
+
+    private MockedStatic<PasswordGenerator> passwordGeneratorMock;
+    private MockedStatic<TraineeMapper> traineeMapperMock;
+    private MockedStatic<TrainerMapper> trainerMapperMock;
 
     @BeforeEach
-    public void setup() {
-        trainerDao = mock(TrainerDao.class);
-        validator = Validation.buildDefaultValidatorFactory().getValidator();
+    void setup() {
         traineeDao = mock(TraineeDao.class);
+        trainerDao = mock(TrainerDao.class);
         usernameGenerator = mock(UsernameGenerator.class);
-        traineeService = new TraineeService(trainerDao, traineeDao, usernameGenerator, validator);
-        passwordGenerator = mockStatic(PasswordGenerator.class);
+
+        traineeService = new TraineeService(traineeDao, trainerDao, usernameGenerator);
+
+        passwordGeneratorMock = mockStatic(PasswordGenerator.class);
+        traineeMapperMock = mockStatic(TraineeMapper.class);
+        trainerMapperMock = mockStatic(TrainerMapper.class);
     }
 
     @AfterEach
     void tearDown() {
-        passwordGenerator.close();
+        passwordGeneratorMock.close();
+        traineeMapperMock.close();
+        trainerMapperMock.close();
     }
 
     @Test
-    void saveSetsUsernameAndPassword() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        setupGenerators("John", "Smith");
-
-        traineeService.save(trainee);
-
-        assertThat(trainee.getUser().getUsername()).isEqualTo("John.Smith");
-        assertThat(trainee.getUser().getPassword()).isEqualTo("pass123ABC");
-    }
-
-    @Test
-    void saveNormalizesNames() {
+    void registerShouldNormalizeNamesAndSaveTrainee() {
+        TraineeRegistrationRequest request = mock(TraineeRegistrationRequest.class);
         Trainee trainee = buildTrainee("john", "smith");
-        setupGenerators("John", "Smith");
+        RegistrationResponse expectedResponse = mock(RegistrationResponse.class);
 
-        traineeService.save(trainee);
+        traineeMapperMock.when(() -> TraineeMapper.toEntity(request)).thenReturn(trainee);
+        passwordGeneratorMock.when(PasswordGenerator::generate).thenReturn("pass123ABC");
+        when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
+        traineeMapperMock.when(() -> TraineeMapper.toRegistrationResponse(trainee)).thenReturn(expectedResponse);
+
+        RegistrationResponse actualResponse = traineeService.register(request);
 
         assertThat(trainee.getUser().getFirstName()).isEqualTo("John");
         assertThat(trainee.getUser().getLastName()).isEqualTo("Smith");
+        assertThat(trainee.getUser().getUsername()).isEqualTo("John.Smith");
+        assertThat(trainee.getUser().getPassword()).isEqualTo("pass123ABC");
+
+        verify(traineeDao).save(trainee);
+        assertThat(actualResponse).isEqualTo(expectedResponse);
     }
 
     @Test
-    void saveCallsUsernameGeneratorWithNormalizedNames() {
-        Trainee trainee = buildTrainee("john", "smith");
-        setupGenerators("John", "Smith");
-
-        traineeService.save(trainee);
-
-        verify(usernameGenerator).generate("John", "Smith");
-    }
-
-    @Test
-    void saveThrowsWhenUserIsNull() {
+    void getProfileWithExistingUsernameReturnsProfileResponse() {
         Trainee trainee = buildTrainee("John", "Smith");
-        trainee.setUser(null);
+        TraineeProfileResponse expectedResponse = mock(TraineeProfileResponse.class);
 
-        assertThatThrownBy(() -> traineeService.save(trainee))
-                .isInstanceOf(ConstraintViolationException.class)
-                .hasMessageContaining("User is required");
+        when(traineeDao.getProfile("John.Smith")).thenReturn(Optional.of(trainee));
+        traineeMapperMock.when(() -> TraineeMapper.toProfileResponse(trainee)).thenReturn(expectedResponse);
+
+        TraineeProfileResponse actualResponse = traineeService.getProfile("John.Smith");
+
+        assertThat(actualResponse).isEqualTo(expectedResponse);
     }
 
     @Test
-    void saveThrowsWhenFirstNameIsBlank() {
-        Trainee trainee = buildTrainee("", "Smith");
+    void getProfileWithUnknownUsernameThrowsResourceNotFoundException() {
+        when(traineeDao.getProfile("unknown")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> traineeService.save(trainee))
-                .isInstanceOf(ConstraintViolationException.class)
-                .hasMessageContaining("First name is required");
-    }
-
-    @Test
-    void saveThrowsWhenLastNameIsBlank() {
-        Trainee trainee = buildTrainee("John", "");
-
-        assertThatThrownBy(() -> traineeService.save(trainee))
-                .isInstanceOf(ConstraintViolationException.class)
-                .hasMessageContaining("Last name is required");
-    }
-
-    @Test
-    void saveThrowsWhenFirstNameHasInvalidCharacters() {
-        Trainee trainee = buildTrainee("J0hn!", "Smith");
-
-        assertThatThrownBy(() -> traineeService.save(trainee))
-                .isInstanceOf(ConstraintViolationException.class)
-                .hasMessageContaining("First name contains invalid characters");
-    }
-
-    @Test
-    void saveThrowsWhenLastNameHasInvalidCharacters() {
-        Trainee trainee = buildTrainee("John", "Sm1th@");
-
-        assertThatThrownBy(() -> traineeService.save(trainee))
-                .isInstanceOf(ConstraintViolationException.class)
-                .hasMessageContaining("Last name contains invalid characters");
-    }
-
-    @Test
-    void saveThrowsWhenIsActiveIsNull() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setIsActive(null);
-
-        assertThatThrownBy(() -> traineeService.save(trainee))
-                .isInstanceOf(ConstraintViolationException.class)
-                .hasMessageContaining("Active status is required");
-    }
-
-    @Test
-    void saveThrowsWhenDateOfBirthIsInFuture() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.setDateOfBirth(LocalDate.now().plusYears(1));
-
-        assertThatThrownBy(() -> traineeService.save(trainee))
-                .isInstanceOf(ConstraintViolationException.class)
-                .hasMessageContaining("Date of birth must be in the past");
-    }
-
-    @Test
-    void saveWithNullDateOfBirthSucceeds() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.setDateOfBirth(null);
-        setupGenerators("John", "Smith");
-
-        assertThatNoException().isThrownBy(() -> traineeService.save(trainee));
-    }
-
-    @Test
-    void saveWithNullAddressSucceeds() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.setAddress(null);
-        setupGenerators("John", "Smith");
-
-        assertThatNoException().isThrownBy(() -> traineeService.save(trainee));
-    }
-
-    @Test
-    void findByUsernameReturnsTrainee() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        setupGenerators("John", "Smith");
-        traineeService.save(trainee);
-
-        String username = trainee.getUser().getUsername();
-        when(traineeDao.findByUserName(username)).thenReturn(Optional.of(trainee));
-
-        Trainee result = traineeService.findByUsername(username);
-
-        assertThat(result.getUser().getUsername()).isEqualTo(username);
-        assertThat(result.getUser().getFirstName()).isEqualTo("John");
-        assertThat(result.getUser().getLastName()).isEqualTo("Smith");
-    }
-
-    @Test
-    void findByUsernameThrowsWhenNotFound() {
-        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> traineeService.findByUsername("unknown"))
-                .isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> traineeService.getProfile("unknown"))
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Trainee not found: unknown");
     }
 
     @Test
-    void changePasswordSucceeds() {
+    void updateWithValidDataUpdatesAndReturnsResponse() {
+        TraineeUpdateRequest request = mock(TraineeUpdateRequest.class);
         Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setPassword("oldPass123");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+        TraineeUpdateResponse expectedResponse = mock(TraineeUpdateResponse.class);
 
-        traineeService.changePassword("John.Smith", "oldPass123", "newPass456");
+        when(traineeDao.getProfile("John.Smith")).thenReturn(Optional.of(trainee));
+        traineeMapperMock.when(() -> TraineeMapper.toUpdateResponse(trainee)).thenReturn(expectedResponse);
 
-        assertThat(trainee.getUser().getPassword()).isEqualTo("newPass456");
+        TraineeUpdateResponse actualResponse = traineeService.update("John.Smith", request);
+
+        traineeMapperMock.verify(() -> TraineeMapper.applyUpdate(trainee, request));
+        verify(traineeDao).update(trainee);
+        assertThat(actualResponse).isEqualTo(expectedResponse);
     }
 
     @Test
-    void changePasswordThrowsWhenTraineeNotFound() {
-        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> traineeService.changePassword("unknown", "old", "new"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Trainee not found: unknown");
-    }
-
-    @Test
-    void changePasswordThrowsWhenOldPasswordDoesNotMatch() {
+    void deleteWithExistingUsernameExecutesSuccessfully() {
         Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setPassword("oldPass123");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
+        when(traineeDao.getProfile("John.Smith")).thenReturn(Optional.of(trainee));
 
-        assertThatThrownBy(() -> traineeService.changePassword("John.Smith", "wrongPass", "newPass456"))
-                .isInstanceOf(AuthenticationException.class)
-                .hasMessageContaining("Old password does not match");
-    }
-
-    @Test
-    void changePasswordThrowsWhenNewPasswordIsBlank() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setPassword("oldPass123");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        assertThatThrownBy(() -> traineeService.changePassword("John.Smith", "oldPass123", ""))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("New password must not be blank");
-    }
-
-    @Test
-    void changePasswordThrowsWhenNewPasswordIsNull() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setPassword("oldPass123");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        assertThatThrownBy(() -> traineeService.changePassword("John.Smith", "oldPass123", null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("New password must not be blank");
-    }
-
-    @Test
-    void updateChangesNameAndUsername() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-        when(usernameGenerator.generate("Johnny", "Smith")).thenReturn("Johnny.Smith");
-
-        Trainee updatedData = Trainee.builder()
-                .user(User.builder()
-                        .firstName("Johnny")
-                        .lastName("Smith")
-                        .build())
-                .dateOfBirth(LocalDate.of(1990, 6, 15))
-                .address("456 New St")
-                .build();
-
-        Trainee result = traineeService.update("John.Smith", updatedData);
-
-        assertThat(result.getUser().getFirstName()).isEqualTo("Johnny");
-        assertThat(result.getUser().getLastName()).isEqualTo("Smith");
-        assertThat(result.getUser().getUsername()).isEqualTo("Johnny.Smith");
-        assertThat(result.getAddress()).isEqualTo("456 New St");
-        assertThat(result.getDateOfBirth()).isEqualTo(LocalDate.of(1990, 6, 15));
-    }
-
-    @Test
-    void updateThrowsWhenTraineeNotFound() {
-        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
-
-        Trainee updatedData = Trainee.builder()
-                .user(User.builder()
-                        .firstName("Johnny")
-                        .lastName("Smith")
-                        .build())
-                .build();
-
-        assertThatThrownBy(() -> traineeService.update("unknown", updatedData))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Trainee not found: unknown");
-    }
-
-    @Test
-    void updateThrowsWhenFirstNameIsBlank() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        Trainee updatedData = Trainee.builder()
-                .user(User.builder()
-                        .firstName("")
-                        .lastName("Smith")
-                        .build())
-                .build();
-
-        assertThatThrownBy(() -> traineeService.update("John.Smith", updatedData))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("First name and last name are required");
-    }
-
-    @Test
-    void updateThrowsWhenDateOfBirthIsInFuture() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        Trainee updatedData = Trainee.builder()
-                .user(User.builder()
-                        .firstName("John")
-                        .lastName("Smith")
-                        .build())
-                .dateOfBirth(LocalDate.now().plusYears(1))
-                .build();
-
-        assertThatThrownBy(() -> traineeService.update("John.Smith", updatedData))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Date of birth must be in the past");
-    }
-
-    @Test
-    void setActiveDeactivatesTrainee() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        trainee.getUser().setIsActive(true);
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        traineeService.setActive("John.Smith", false);
-
-        assertThat(trainee.getUser().getIsActive()).isFalse();
-    }
-
-    @Test
-    void setActiveActivatesTrainee() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        trainee.getUser().setIsActive(false);
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        traineeService.setActive("John.Smith", true);
-
-        assertThat(trainee.getUser().getIsActive()).isTrue();
-    }
-
-    @Test
-    void setActiveThrowsWhenAlreadyActive() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        trainee.getUser().setIsActive(true);
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        assertThatThrownBy(() -> traineeService.setActive("John.Smith", true))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Trainee is already active");
-    }
-
-    @Test
-    void setActiveThrowsWhenAlreadyInactive() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        trainee.getUser().setIsActive(false);
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        assertThatThrownBy(() -> traineeService.setActive("John.Smith", false))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Trainee is already inactive");
-    }
-
-    @Test
-    void deleteByUsernameDeletesTrainee() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-
-        traineeService.deleteByUsername("John.Smith");
+        traineeService.delete("John.Smith");
 
         verify(traineeDao).delete(trainee);
     }
 
     @Test
-    void deleteByUsernameThrowsWhenNotFound() {
-        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
+    void getUnassignedTrainersFiltersOnlyActiveTrainers() {
+        Trainer activeTrainer = buildTrainer("Active.Trainer", true);
+        Trainer inactiveTrainer = buildTrainer("Inactive.Trainer", false);
 
-        assertThatThrownBy(() -> traineeService.deleteByUsername("unknown"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Trainee not found: unknown");
+        TraineeProfileResponse.TrainerSummary summary = mock(TraineeProfileResponse.TrainerSummary.class);
+
+        when(traineeDao.getProfile("John.Smith")).thenReturn(Optional.of(buildTrainee("John", "Smith")));
+        when(traineeDao.findUnassignedTrainers("John.Smith")).thenReturn(List.of(activeTrainer, inactiveTrainer));
+        trainerMapperMock.when(() -> TrainerMapper.toSummary(activeTrainer)).thenReturn(summary);
+
+        List<TraineeProfileResponse.TrainerSummary> result = traineeService.getUnassignedTrainers("John.Smith");
+
+        assertThat(result).hasSize(1).containsExactly(summary);
     }
 
     @Test
-    void getUnassignedTrainersReturnsList() {
-        List<Trainer> trainers = List.of(
-                buildTrainerWithUsername("Nika.Doe"),
-                buildTrainerWithUsername("Giorgi.Smith")
-        );
-        when(traineeDao.findUnassignedTrainers("John.Smith")).thenReturn(trainers);
+    void updateTrainersWithValidTrainersUpdatesTraineeTrainersList() {
+        UpdateTraineeTrainersRequest request = mock(UpdateTraineeTrainersRequest.class);
+        UpdateTraineeTrainersRequest.TrainerRef ref = mock(UpdateTraineeTrainersRequest.TrainerRef.class);
 
-        List<Trainer> result = traineeService.getUnassignedTrainers("John.Smith");
-
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(t -> t.getUser().getUsername())
-                .containsExactlyInAnyOrder("Nika.Doe", "Giorgi.Smith");
-    }
-
-    @Test
-    void getUnassignedTrainersReturnsEmptyWhenAllAssigned() {
-        when(traineeDao.findUnassignedTrainers("John.Smith")).thenReturn(List.of());
-
-        List<Trainer> result = traineeService.getUnassignedTrainers("John.Smith");
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    void updateTrainersListSetsTrainers() {
         Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainerWithUsername("Nika.Doe")));
-        when(trainerDao.findByUserName("Giorgi.Smith")).thenReturn(Optional.of(buildTrainerWithUsername("Giorgi.Smith")));
+        Trainer trainer = buildTrainer("Trainer.One", true);
+        TraineeProfileResponse.TrainerSummary summary = mock(TraineeProfileResponse.TrainerSummary.class);
 
-        traineeService.updateTrainersList("John.Smith", List.of("Nika.Doe", "Giorgi.Smith"));
+        when(ref.trainerUsername()).thenReturn("Trainer.One");
+        when(request.trainers()).thenReturn(List.of(ref));
+        when(traineeDao.getProfile("John.Smith")).thenReturn(Optional.of(trainee));
+        when(trainerDao.findByUsernames(Set.of("Trainer.One"))).thenReturn(List.of(trainer));
+        trainerMapperMock.when(() -> TrainerMapper.toSummary(trainer)).thenReturn(summary);
 
-        assertThat(trainee.getTrainers()).hasSize(2);
-        assertThat(trainee.getTrainers()).extracting(t -> t.getUser().getUsername())
-                .containsExactlyInAnyOrder("Nika.Doe", "Giorgi.Smith");
+        List<TraineeProfileResponse.TrainerSummary> result = traineeService.updateTrainers("John.Smith", request);
+
+        assertThat(trainee.getTrainers()).containsExactly(trainer);
+        verify(traineeDao).update(trainee);
+        assertThat(result).containsExactly(summary);
     }
 
     @Test
-    void updateTrainersListThrowsWhenTraineeNotFound() {
-        when(traineeDao.findByUserName("unknown")).thenReturn(Optional.empty());
+    void updateTrainersWithMissingTrainersThrowsResourceNotFoundException() {
+        UpdateTraineeTrainersRequest request = mock(UpdateTraineeTrainersRequest.class);
+        UpdateTraineeTrainersRequest.TrainerRef ref = mock(UpdateTraineeTrainersRequest.TrainerRef.class);
 
-        assertThatThrownBy(() -> traineeService.updateTrainersList("unknown", List.of("Nika.Doe")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Trainee not found: unknown");
+        when(ref.trainerUsername()).thenReturn("Missing.Trainer");
+        when(request.trainers()).thenReturn(List.of(ref));
+        when(traineeDao.getProfile("John.Smith")).thenReturn(Optional.of(buildTrainee("John", "Smith")));
+        when(trainerDao.findByUsernames(Set.of("Missing.Trainer"))).thenReturn(Collections.emptyList());
+
+        assertThatThrownBy(() -> traineeService.updateTrainers("John.Smith", request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Trainer(s) not found");
     }
 
     @Test
-    void updateTrainersListThrowsWhenTrainerNotFound() {
+    void setActiveUpdatesStatusAndReturnsResponse() {
         Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+        trainee.getUser().setIsActive(false);
+        TraineeUpdateResponse expectedResponse = mock(TraineeUpdateResponse.class);
 
-        assertThatThrownBy(() -> traineeService.updateTrainersList("John.Smith", List.of("unknown")))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Trainer not found: unknown");
-    }
+        when(traineeDao.getProfile("John.Smith")).thenReturn(Optional.of(trainee));
+        traineeMapperMock.when(() -> TraineeMapper.toUpdateResponse(trainee)).thenReturn(expectedResponse);
 
-    @Test
-    void updateTrainersListClearsExistingTrainers() {
-        Trainee trainee = buildTrainee("John", "Smith");
-        trainee.getUser().setUsername("John.Smith");
-        trainee.setTrainers(new HashSet<>(Set.of(buildTrainerWithUsername("Old.Trainer"))));
-        when(traineeDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainee));
-        when(trainerDao.findByUserName("Nika.Doe")).thenReturn(Optional.of(buildTrainerWithUsername("Nika.Doe")));
+        TraineeUpdateResponse actualResponse = traineeService.setActive("John.Smith", true);
 
-        traineeService.updateTrainersList("John.Smith", List.of("Nika.Doe"));
-
-        assertThat(trainee.getTrainers()).hasSize(1);
-        assertThat(trainee.getTrainers()).extracting(t -> t.getUser().getUsername())
-                .containsExactly("Nika.Doe");
-    }
-
-    private Trainer buildTrainerWithUsername(String username) {
-        return Trainer.builder()
-                .user(User.builder()
-                        .firstName("Nika")
-                        .lastName("Doe")
-                        .username(username)
-                        .password("pass123")
-                        .isActive(true)
-                        .build())
-                .specialization(TrainingType.builder()
-                        .trainingTypeName("Yoga")
-                        .build())
-                .build();
-    }
-
-    private void setupGenerators(String firstName, String lastName) {
-        when(usernameGenerator.generate(firstName, lastName))
-                .thenReturn(firstName + "." + lastName);
-        passwordGenerator.when(PasswordGenerator::generate).thenReturn("pass123ABC");
+        assertThat(trainee.getUser().getIsActive()).isTrue();
+        verify(traineeDao).update(trainee);
+        assertThat(actualResponse).isEqualTo(expectedResponse);
     }
 
     private Trainee buildTrainee(String firstName, String lastName) {
-        return Trainee.builder()
-                .user(User.builder()
-                        .firstName(firstName)
-                        .lastName(lastName)
-                        .isActive(true)
-                        .build())
-                .dateOfBirth(LocalDate.of(1999, 5, 6))
-                .build();
+        User user = new User();
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+
+        Trainee trainee = new Trainee();
+        trainee.setUser(user);
+        trainee.setTrainers(new HashSet<>());
+        return trainee;
+    }
+
+    private Trainer buildTrainer(String username, boolean isActive) {
+        User user = new User();
+        user.setUsername(username);
+        user.setIsActive(isActive);
+
+        Trainer trainer = new Trainer();
+        trainer.setUser(user);
+        return trainer;
     }
 }

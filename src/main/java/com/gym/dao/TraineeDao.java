@@ -21,7 +21,7 @@ public class TraineeDao {
         sessionFactory.getCurrentSession().persist(trainee);
     }
 
-    public Optional<Trainee> findByUserName(String username) {
+    public Optional<Trainee> getProfile(String username) {
         return sessionFactory.getCurrentSession()
                 .createQuery("""
                                 SELECT t
@@ -55,8 +55,8 @@ public class TraineeDao {
                 .getResultList();
     }
 
-    public Trainee update(Trainee trainee) {
-        return sessionFactory.getCurrentSession().merge(trainee);
+    public void update(Trainee trainee) {
+        sessionFactory.getCurrentSession().merge(trainee);
     }
 
 }

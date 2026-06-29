@@ -4,6 +4,8 @@ import com.gym.model.TrainingType;
 import org.hibernate.SessionFactory;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public class TrainingTypeDao {
 
@@ -26,4 +28,15 @@ public class TrainingTypeDao {
                 .getSingleResultOrNull();
 
     }
+
+    public TrainingType findById(final Long id) {
+        return sessionFactory.getCurrentSession().find(TrainingType.class, id);
+    }
+
+    public List<TrainingType> findAll() {
+        return sessionFactory.getCurrentSession()
+                .createQuery("SELECT t FROM TrainingType t ORDER BY t.trainingTypeName", TrainingType.class)
+                .getResultList();
+    }
+
 }

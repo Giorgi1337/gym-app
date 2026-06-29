@@ -16,7 +16,7 @@ java {
 
 // Dependency Versions
 val springVersion = "7.0.7"
-val jacksonVersion = "3.1.4"
+val jacksonVersion = "3.2.0"
 val lombokVersion = "1.18.46"
 val logbackVersion = "1.5.34"
 val junitVersion = "6.0.0"
@@ -28,6 +28,8 @@ val mockitoVersion = "5.23.0"
 val assertjCore = "3.27.7"
 val hibernateVersion = "7.4.1.Final"
 val flywayVersion = "12.8.1"
+val tomcatVersion = "11.0.22"
+val springDocVersion = "3.0.3"
 
 repositories {
     mavenCentral()
@@ -36,7 +38,16 @@ repositories {
 // Dependencies
 dependencies {
 
+    // // Embedded Tomcat
+    implementation("org.apache.tomcat.embed:tomcat-embed-core:$tomcatVersion")
+    implementation("org.apache.tomcat.embed:tomcat-embed-jasper:$tomcatVersion")
+    compileOnly("jakarta.servlet:jakarta.servlet-api:6.1.0")
+
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springDocVersion")
+
     // Spring
+    implementation("org.springframework:spring-webmvc:$springVersion")
+    implementation("org.springframework:spring-web:$springVersion")
     implementation("org.springframework:spring-core:$springVersion")
     implementation("org.springframework:spring-context:$springVersion")
     implementation("org.springframework:spring-orm:$springVersion")
@@ -68,6 +79,7 @@ dependencies {
     // Jackson
     implementation("tools.jackson.core:jackson-core:$jacksonVersion")
     implementation("tools.jackson.core:jackson-databind:$jacksonVersion")
+    implementation("tools.jackson.datatype:jackson-datatype-json-org:$jacksonVersion")
 
     // Lombok
     compileOnly("org.projectlombok:lombok:$lombokVersion")
@@ -87,12 +99,15 @@ dependencies {
     testImplementation("org.mockito:mockito-junit-jupiter:$mockitoVersion")
     testImplementation("org.springframework:spring-test:$springVersion")
     testImplementation("org.assertj:assertj-core:$assertjCore")
+    testImplementation("org.hamcrest:hamcrest:3.0")
+    implementation("com.jayway.jsonpath:json-path:3.0.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 // Compile
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
+    options.compilerArgs.add("-parameters")
 }
 
 // Test
@@ -115,6 +130,10 @@ jacoco {
 val jacocoExclusions = listOf(
     "com/gym/dao/**",
     "com/gym/config/**",
+    "com/gym/dto/**",
+    "com/gym/mapper/**",
+    "com/gym/exception/**",
+    "com/gym/filter/**",
     "com/gym/GymApplication.class",
 )
 

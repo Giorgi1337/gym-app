@@ -1,11 +1,6 @@
 package com.gym.model;
 
-import com.gym.validation.OnCreate;
 import jakarta.persistence.*;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Past;
-import jakarta.validation.groups.ConvertGroup;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -27,16 +22,12 @@ public class Trainee {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Past(message = "Date of birth must be in the past", groups = OnCreate.class)
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
     @Column(name = "address")
     private String address;
 
-    @Valid
-    @ConvertGroup(from = OnCreate.class, to = OnCreate.class)
-    @NotNull(message = "User is required", groups = OnCreate.class)
     @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;

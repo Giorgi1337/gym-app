@@ -2,26 +2,25 @@ package com.gym.service;
 
 import com.gym.dao.TraineeDao;
 import com.gym.dao.TrainerDao;
-import com.gym.exception.AuthenticationException;
+import com.gym.dto.RegistrationResponse;
+import com.gym.dto.trainee.*;
+import com.gym.exception.ResourceNotFoundException;
+import com.gym.mapper.TraineeMapper;
+import com.gym.mapper.TrainerMapper;
 import com.gym.model.Trainee;
 import com.gym.model.Trainer;
 import com.gym.model.User;
-import com.gym.security.RequiresAuthentication;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
-import com.gym.validation.OnCreate;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.gym.utils.NameUtils.normalize;
 
@@ -31,159 +30,120 @@ public class TraineeService {
 
     private static final Logger log = LoggerFactory.getLogger(TraineeService.class);
 
-    private final TrainerDao trainerDao;
     private final TraineeDao traineeDao;
+    private final TrainerDao trainerDao;
     private final UsernameGenerator usernameGenerator;
-    private final Validator validator;
 
-    public TraineeService(TrainerDao trainerDao, TraineeDao traineeDao, UsernameGenerator usernameGenerator, Validator validator) {
-        this.trainerDao = trainerDao;
+    public TraineeService(TraineeDao traineeDao, TrainerDao trainerDao, UsernameGenerator usernameGenerator) {
         this.traineeDao = traineeDao;
+        this.trainerDao = trainerDao;
         this.usernameGenerator = usernameGenerator;
-        this.validator = validator;
     }
 
-    public void save(Trainee trainee) {
-        if (trainee.getUser() != null) {
-            User user = trainee.getUser();
-            user.setFirstName(normalize(user.getFirstName()));
-            user.setLastName(normalize(user.getLastName()));
-        }
+    public RegistrationResponse register(TraineeRegistrationRequest request) {
+        Trainee trainee = TraineeMapper.toEntity(request);
 
-        Set<ConstraintViolation<Trainee>> violations = validator.validate(trainee, OnCreate.class);
-        if (!violations.isEmpty()) {
-            throw new ConstraintViolationException(violations);
-        }
+        User user = trainee.getUser();
 
-        String username = usernameGenerator.generate(
-                trainee.getUser().getFirstName(),
-                trainee.getUser().getLastName()
-        );
-        String password = PasswordGenerator.generate();
+        user.setFirstName(normalize(user.getFirstName()));
+        user.setLastName(normalize(user.getLastName()));
 
-        trainee.getUser().setUsername(username);
-        trainee.getUser().setPassword(password);
+        user.setUsername(usernameGenerator.generate(
+                user.getFirstName(),
+                user.getLastName()
+        ));
+
+        user.setPassword(PasswordGenerator.generate());
 
         traineeDao.save(trainee);
-        log.info("Created trainee with username: {}", username);
+
+        log.info("Registered trainee: {}", user.getUsername());
+        return TraineeMapper.toRegistrationResponse(trainee);
     }
 
-    @RequiresAuthentication
     @Transactional(readOnly = true)
-    public Trainee findByUsername(final String username) {
-        log.info("Fetching trainee by username: {}", username);
+    public TraineeProfileResponse getProfile(String username) {
+        Trainee trainee = traineeDao.getProfile(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
 
-        return traineeDao.findByUserName(username)
-                .orElseThrow(() -> {
-                    log.warn("Trainee not found: {}", username);
-                    return new IllegalArgumentException("Trainee not found: " + username);
-                });
+        return TraineeMapper.toProfileResponse(trainee);
     }
 
-    @RequiresAuthentication
-    public void changePassword(final String username, final String oldPassword, final String newPassword) {
-        log.info("Changing password for trainee: {}", username);
+    @Transactional
+    public TraineeUpdateResponse update(String username, TraineeUpdateRequest request) {
+        Trainee trainee = traineeDao.getProfile(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
 
-        Trainee trainee = traineeDao.findByUserName(username)
-                .orElseThrow(() -> {
-                    log.warn("Trainee not found: {}", username);
-                    return new IllegalArgumentException("Trainee not found: " + username);
-                });
+        TraineeMapper.applyUpdate(trainee, request);
+        traineeDao.update(trainee);
 
-        User user = trainee.getUser();
-
-        if (!user.getPassword().equals(oldPassword)) {
-            log.warn("Password change failed for trainee: {} — old password does not match", username);
-            throw new AuthenticationException("Old password does not match");
-        }
-
-        if (newPassword == null || newPassword.isBlank()) {
-            log.warn("Password change failed for trainee: {} — new password is blank", username);
-            throw new IllegalArgumentException("New password must not be blank");
-        }
-
-        user.setPassword(newPassword);
-        log.info("Password changed successfully for trainee: {}", username);
+        log.info("Updated trainee: {}", trainee.getUser().getUsername());
+        return TraineeMapper.toUpdateResponse(trainee);
     }
 
-    @RequiresAuthentication
-    public Trainee update(final String username, final Trainee updatedData) {
-        log.info("Updating trainee: {}", username);
+    @Transactional
+    public void delete(String username) {
+        Trainee trainee = traineeDao.getProfile(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
 
-        Trainee trainee = findByUsername(username);
-
-        String firstName = normalize(updatedData.getUser().getFirstName());
-        String lastName = normalize(updatedData.getUser().getLastName());
-
-        if (firstName.isBlank() || lastName.isBlank()) {
-            log.warn("Update failed for trainee: {} — first or last name is blank", username);
-            throw new IllegalArgumentException("First name and last name are required");
-        }
-
-        if (updatedData.getDateOfBirth() != null && updatedData.getDateOfBirth().isAfter(LocalDate.now())) {
-            log.warn("Update failed for trainee: {} — date of birth is in the future", username);
-            throw new IllegalArgumentException("Date of birth must be in the past");
-        }
-
-        trainee.getUser().setFirstName(firstName);
-        trainee.getUser().setLastName(lastName);
-
-        String newUsername = usernameGenerator.generate(firstName, lastName);
-        trainee.getUser().setUsername(newUsername);
-
-        trainee.setDateOfBirth(updatedData.getDateOfBirth());
-        trainee.setAddress(updatedData.getAddress());
-
-        log.info("Trainee updated successfully: {} → new username: {}", username, newUsername);
-        return trainee;
-    }
-
-    @RequiresAuthentication
-    public void setActive(final String username, final boolean active) {
-        log.info("Setting trainee: {} to {}", username, active ? "active" : "inactive");
-
-        Trainee trainee = findByUsername(username);
-        User user = trainee.getUser();
-
-        if (user.getIsActive().equals(active)) {
-            log.warn("Trainee: {} is already {}", username, active ? "active" : "inactive");
-            throw new IllegalStateException("Trainee is already " + (active ? "active" : "inactive"));
-        }
-
-        user.setIsActive(active);
-        log.info("Trainee: {} is now {}", username, active ? "active" : "inactive");
-    }
-
-    @RequiresAuthentication
-    public void deleteByUsername(final String username) {
-        log.info("Deleting trainee: {}", username);
-
-        Trainee trainee = findByUsername(username);
         traineeDao.delete(trainee);
-
-        log.info("Trainee deleted successfully: {}", username);
+        log.info("Deleted trainee: {}", username);
     }
 
-    @RequiresAuthentication
     @Transactional(readOnly = true)
-    public List<Trainer> getUnassignedTrainers(final String traineeUsername) {
-        log.info("Fetching unassigned trainers for trainee: {}", traineeUsername);
-        return traineeDao.findUnassignedTrainers(traineeUsername);
+    public List<TraineeProfileResponse.TrainerSummary> getUnassignedTrainers(String username) {
+        traineeDao.getProfile(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
+
+        return traineeDao.findUnassignedTrainers(username).stream()
+                .filter(trainer -> Boolean.TRUE.equals(trainer.getUser().getIsActive()))
+                .map(TrainerMapper::toSummary)
+                .toList();
     }
 
-    @RequiresAuthentication
-    public void updateTrainersList(final String traineeUsername, final List<String> trainerUsernames) {
-        log.info("Updating trainers list for trainee: {}", traineeUsername);
+    @Transactional
+    public List<TraineeProfileResponse.TrainerSummary> updateTrainers(String username, UpdateTraineeTrainersRequest request) {
+        Trainee trainee = traineeDao.getProfile(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
 
-        Trainee trainee = findByUsername(traineeUsername);
+        Set<String> requestedUsernames = request.trainers().stream()
+                .map(UpdateTraineeTrainersRequest.TrainerRef::trainerUsername)
+                .collect(Collectors.toSet());
 
-        List<Trainer> trainers = trainerUsernames.stream()
-                .map(username -> trainerDao.findByUserName(username)
-                        .orElseThrow(() -> new IllegalArgumentException("Trainer not found: " + username)))
-                .toList();
+        List<Trainer> trainers = trainerDao.findByUsernames(requestedUsernames);
+
+        if (trainers.size() != requestedUsernames.size()) {
+            Set<String> foundUsernames = trainers.stream()
+                    .map(t -> t.getUser().getUsername())
+                    .collect(Collectors.toSet());
+
+            Set<String> missing = requestedUsernames.stream()
+                    .filter(u -> !foundUsernames.contains(u))
+                    .collect(Collectors.toSet());
+
+            throw new ResourceNotFoundException("Trainer(s) not found: " + missing);
+        }
 
         trainee.setTrainers(new HashSet<>(trainers));
-        log.info("Trainers list updated for trainee: {}", traineeUsername);
+        traineeDao.update(trainee);
+
+        log.info("Updated trainer list for trainee: {}", username);
+
+        return trainers.stream()
+                .map(TrainerMapper::toSummary)
+                .toList();
+    }
+
+    @Transactional
+    public TraineeUpdateResponse setActive(String username, boolean active) {
+        Trainee trainee = traineeDao.getProfile(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
+
+        trainee.getUser().setIsActive(active);
+        traineeDao.update(trainee);
+
+        log.info("Set active = {} for trainee: {}", active, username);
+        return TraineeMapper.toUpdateResponse(trainee);
     }
 
 }
