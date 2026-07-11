@@ -12,22 +12,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
-/**
- * Logs the specifics of every REST call: which endpoint was hit, the inbound
- * request payload, and the resulting response status + body. Runs after
- * {@link TransactionIdFilter}, so every line here is already tagged with the
- * current transactionId via MDC.
- *
- * <p>Request and response bodies are buffered via Spring's content-caching
- * wrappers so they can be read for logging without consuming the stream that
- * the controller/servlet still needs to read.
- */
 public class RequestResponseLoggingFilter implements Filter {
 
     private static final Logger log = LoggerFactory.getLogger("com.gym.filter.RequestResponseLog");
 
     /** Paths excluded from body logging — static/doc assets, not business traffic. */
-    private static final Set<String> EXCLUDED_PREFIXES = Set.of("/swagger-ui", "/v3/api-docs");
+    private static final Set<String> EXCLUDED_PREFIXES = Set.of("/swagger-ui", "/v3/api-docs", "/scalar");
 
     /** Caps how many request-body bytes are buffered in memory purely for logging. */
     private static final int MAX_LOGGED_BODY_BYTES = 10_000;

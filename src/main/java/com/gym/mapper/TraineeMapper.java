@@ -1,15 +1,11 @@
 package com.gym.mapper;
 
-import com.gym.dto.RegistrationResponse;
-import com.gym.dto.trainee.TraineeProfileResponse;
-import com.gym.dto.trainee.TraineeRegistrationRequest;
-import com.gym.dto.trainee.TraineeUpdateRequest;
-import com.gym.dto.trainee.TraineeUpdateResponse;
-import com.gym.model.Trainee;
-import com.gym.model.Trainer;
-import com.gym.model.User;
+import com.gym.dto.*;
+import com.gym.model.*;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public final class TraineeMapper {
 
@@ -18,12 +14,12 @@ public final class TraineeMapper {
     public static Trainee toEntity(TraineeRegistrationRequest request) {
         return Trainee.builder()
                 .user(User.builder()
-                        .firstName(request.firstName())
-                        .lastName(request.lastName())
+                        .firstName(request.getFirstName())
+                        .lastName(request.getLastName())
                         .isActive(true)
                         .build())
-                .dateOfBirth(request.dateOfBirth())
-                .address(request.address())
+                .dateOfBirth(request.getDateOfBirth())
+                .address(request.getAddress())
                 .build();
     }
 
@@ -37,56 +33,58 @@ public final class TraineeMapper {
     public static TraineeProfileResponse toProfileResponse(Trainee trainee) {
         User user = trainee.getUser();
 
-        List<TraineeProfileResponse.TrainerSummary> trainerSummaries = trainee.getTrainers().stream()
-                .map(TraineeMapper::toTrainerSummary)
-                .toList();
-
-        return new TraineeProfileResponse(
-                user.getFirstName(),
-                user.getLastName(),
-                trainee.getDateOfBirth(),
-                trainee.getAddress(),
-                user.getIsActive(),
-                trainerSummaries
-        );
-    }
-
-    private static TraineeProfileResponse.TrainerSummary toTrainerSummary(Trainer trainer) {
-        User trainerUser = trainer.getUser();
-        return new TraineeProfileResponse.TrainerSummary(
-                trainerUser.getUsername(),
-                trainerUser.getFirstName(),
-                trainerUser.getLastName(),
-                trainer.getSpecialization().getTrainingTypeName()
-        );
-    }
-
-    public static void applyUpdate(Trainee trainee, TraineeUpdateRequest request) {
-        User user = trainee.getUser();
-        user.setFirstName(request.firstName());
-        user.setLastName(request.lastName());
-        user.setIsActive(request.isActive());
-
-        trainee.setDateOfBirth(request.dateOfBirth());
-        trainee.setAddress(request.address());
+        return new TraineeProfileResponse()
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .dateOfBirth(trainee.getDateOfBirth())
+                .address(trainee.getAddress())
+                .isActive(user.getIsActive())
+                .trainers(mapTrainers(trainee));
     }
 
     public static TraineeUpdateResponse toUpdateResponse(Trainee trainee) {
         User user = trainee.getUser();
 
-        List<TraineeProfileResponse.TrainerSummary> trainerSummaries = trainee.getTrainers().stream()
-                .map(TraineeMapper::toTrainerSummary)
-                .toList();
-
-        return new TraineeUpdateResponse(
-                user.getUsername(),
-                user.getFirstName(),
-                user.getLastName(),
-                trainee.getDateOfBirth(),
-                trainee.getAddress(),
-                user.getIsActive(),
-                trainerSummaries
-        );
+        return new TraineeUpdateResponse()
+                .username(user.getUsername())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .dateOfBirth(trainee.getDateOfBirth())
+                .address(trainee.getAddress())
+                .isActive(user.getIsActive())
+                .trainers(mapTrainers(trainee));
     }
 
+    public static void applyUpdate(Trainee trainee, TraineeUpdateRequest request) {
+        User user = trainee.getUser();
+
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setIsActive(request.getIsActive());
+
+        trainee.setDateOfBirth(request.getDateOfBirth());
+        trainee.setAddress(request.getAddress());
+    }
+
+    private static List<TrainerSummary> mapTrainers(Trainee trainee) {
+        if (trainee.getTrainers() == null || trainee.getTrainers().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return trainee.getTrainers()
+                .stream()
+                .filter(Objects::nonNull)
+                .map(TraineeMapper::toTrainerSummary)
+                .toList();
+    }
+
+    private static TrainerSummary toTrainerSummary(Trainer trainer) {
+        User trainerUser = trainer.getUser();
+
+        return new TrainerSummary()
+                .username(trainerUser.getUsername())
+                .firstName(trainerUser.getFirstName())
+                .lastName(trainerUser.getLastName())
+                .specialization(trainer.getSpecialization().getTrainingTypeName());
+    }
 }

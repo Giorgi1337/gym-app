@@ -1,52 +1,89 @@
 package com.gym.utils;
 
-import com.gym.dao.UserDao;
+import com.gym.exception.BusinessValidationException;
+import com.gym.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class UsernameGeneratorTest {
 
-    private UserDao userDao;
+    private UserRepository userRepository;
     private UsernameGenerator usernameGenerator;
 
     @BeforeEach
-    void setUp() {
-        userDao = mock(UserDao.class);
-        usernameGenerator = new UsernameGenerator(userDao);
+    public void setUp() {
+        userRepository = mock(UserRepository.class);
+        usernameGenerator = new UsernameGenerator(userRepository);
     }
 
     @Test
-    void generate() {
-        when(userDao.findUsernamesByPrefix("John.Doe"))
-                .thenReturn(List.of(
-                        "John.Doe",
-                        "John.Doe1",
-                        "John.Doe2"
-                ));
+    void shouldReturnBaseUsernameWhenNotExists() {
+        when(userRepository.findUsernamesStartingWith("john.doe")).
+                thenReturn(List.of());
 
-        String res = usernameGenerator.generate("John", "Doe");
+        String result = usernameGenerator.generate("john", "doe");
 
-        assertThat(res).isEqualTo("John.Doe3");
+        assertThat(result).isEqualTo("john.doe");
     }
 
     @Test
-    void returnBaseUserNameWhenBaseUsernameDoesNotExist() {
-        when(userDao.findUsernamesByPrefix("John.Doe"))
+    void shouldReturnNextAvailableSuffixWhenBaseExists() {
+        when(userRepository.findUsernamesStartingWith("john.doe"))
                 .thenReturn(List.of(
-                        "John.Doe1",
-                        "John.Doe2",
-                        "John.Doe3"
+                        "john.doe",
+                        "john.doe1",
+                        "john.doe2"
                 ));
 
-        String res = usernameGenerator.generate("John", "Doe");
+        String result = usernameGenerator.generate("john", "doe");
 
-        assertThat(res).isEqualTo("John.Doe");
+        assertThat(result).isEqualTo("john.doe3");
     }
 
+    @Test
+    void shouldSkipGapsAndFindFirstAvailableSuffix() {
+        when(userRepository.findUsernamesStartingWith("john.doe"))
+                .thenReturn(List.of(
+                        "john.doe",
+                        "john.doe1",
+                        "john.doe3"
+                ));
+
+        String result = usernameGenerator.generate("john", "doe");
+
+        assertThat(result).isEqualTo("john.doe2");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenFirstNameIsBlank() {
+        assertThatThrownBy(() -> usernameGenerator.generate("", "doe"))
+                .isInstanceOf(BusinessValidationException.class)
+                .satisfies(ex -> {
+                    BusinessValidationException exception = (BusinessValidationException) ex;
+                    assertThat(exception.getErrors())
+                            .hasSize(1)
+                            .extracting("field")
+                            .containsExactly("firstName");
+                });
+    }
+
+    @Test
+    void shouldThrowExceptionWhenLastNameIsBlank() {
+        assertThatThrownBy(() -> usernameGenerator.generate(" ", " "))
+                .isInstanceOf(BusinessValidationException.class)
+                .satisfies(ex -> {
+                    BusinessValidationException exception = (BusinessValidationException) ex;
+                    assertThat(exception.getErrors())
+                            .hasSize(2)
+                            .extracting("field")
+                            .containsExactlyInAnyOrder("firstName", "lastName");
+                });
+    }
 }

@@ -1,56 +1,56 @@
 package com.gym.utils;
 
-import com.gym.dao.UserDao;
+import com.gym.exception.BusinessValidationException;
+import com.gym.exception.ErrorResponse;
+import com.gym.repository.UserRepository;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 @Component
 public class UsernameGenerator {
 
-    private static final Pattern SUFFIX_PATTERN = Pattern.compile("^\\d+$");
+    private final UserRepository userRepository;
 
-    private final UserDao userDao;
-
-    public UsernameGenerator(UserDao userDao) {
-        this.userDao = userDao;
+    public UsernameGenerator(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
-    public final String generate(final String firstName, final String lastName) {
-        String base = firstName + "." + lastName;
+    public String generate(String firstName, String lastName) {
+        String base = buildBase(firstName, lastName);
 
-        List<String> usernames = userDao.findUsernamesByPrefix(base);
+        List<String> existing = userRepository.findUsernamesStartingWith(base);
 
-        int maxSuffix = 0;
-        boolean baseExists = false;
-
-        for (String username : usernames) {
-            if (base.equals(username)) {
-                baseExists = true;
-                continue;
-            }
-
-            if (!username.startsWith(base)) {
-                continue;
-            }
-
-            String suffix = username.substring(base.length());
-
-            if (isNumeric(suffix)) {
-                int value = Integer.parseInt(suffix);
-                if (value > maxSuffix) {
-                    maxSuffix = value;
-                }
-            }
+        if (!existing.contains(base)) {
+            return base;
         }
 
-        return baseExists ? base + (maxSuffix + 1) : base;
+        int suffix = 1;
+
+        while (existing.contains(base + suffix)) {
+            suffix++;
+        }
+
+        return base + suffix;
     }
 
-    private boolean isNumeric(String value) {
-        return value != null && SUFFIX_PATTERN.matcher(value).matches();
-    }
+    private String buildBase(String firstName, String lastName) {
+        List<ErrorResponse.FieldError> errors = new ArrayList<>();
 
+        if (firstName == null || firstName.isBlank()) {
+            errors.add(new ErrorResponse.FieldError("firstName", "must not be blank"));
+        }
+
+        if (lastName == null || lastName.isBlank()) {
+            errors.add(new ErrorResponse.FieldError("lastName", "must not be blank"));
+        }
+
+        if (!errors.isEmpty()) {
+            throw new BusinessValidationException(errors);
+        }
+
+        return firstName.trim() + "." + lastName.trim();
+    }
 }
 

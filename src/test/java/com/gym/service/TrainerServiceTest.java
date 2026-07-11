@@ -1,24 +1,22 @@
 package com.gym.service;
 
-import com.gym.dao.TrainerDao;
-import com.gym.dao.TrainingTypeDao;
-import com.gym.dto.RegistrationResponse;
-import com.gym.dto.trainer.TrainerProfileResponse;
-import com.gym.dto.trainer.TrainerRegistrationRequest;
-import com.gym.dto.trainer.TrainerUpdateRequest;
-import com.gym.dto.trainer.TrainerUpdateResponse;
+import com.gym.dto.*;
 import com.gym.exception.ResourceNotFoundException;
-import com.gym.mapper.TrainerMapper;
+import com.gym.metrics.GymMetrics;
 import com.gym.model.Trainer;
 import com.gym.model.TrainingType;
 import com.gym.model.User;
+import com.gym.repository.TrainerRepository;
+import com.gym.repository.TrainingTypeRepository;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
+import java.util.HashSet;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,176 +25,177 @@ import static org.mockito.Mockito.*;
 
 public class TrainerServiceTest {
 
-    private TrainerDao trainerDao;
-    private TrainingTypeDao trainingTypeDao;
+    private TrainerRepository trainerRepository;
+    private TrainingTypeRepository trainingTypeRepository;
     private UsernameGenerator usernameGenerator;
+    private GymMetrics gymMetrics;
     private TrainerService trainerService;
 
     private MockedStatic<PasswordGenerator> passwordGeneratorMock;
-    private MockedStatic<TrainerMapper> trainerMapperMock;
 
     @BeforeEach
     void setUp() {
-        trainerDao = mock(TrainerDao.class);
-        trainingTypeDao = mock(TrainingTypeDao.class);
+        trainerRepository = mock(TrainerRepository.class);
+        trainingTypeRepository = mock(TrainingTypeRepository.class);
         usernameGenerator = mock(UsernameGenerator.class);
+        gymMetrics = mock(GymMetrics.class);
 
-        trainerService = new TrainerService(trainerDao, trainingTypeDao, usernameGenerator);
+        trainerService = new TrainerService(trainerRepository, trainingTypeRepository, usernameGenerator, gymMetrics);
 
         passwordGeneratorMock = mockStatic(PasswordGenerator.class);
-        trainerMapperMock = mockStatic(TrainerMapper.class);
     }
 
     @AfterEach
     void tearDown() {
         passwordGeneratorMock.close();
-        trainerMapperMock.close();
     }
 
     @Test
-    void registerShouldNormalizeNamesLookupSpecializationAndSaveTrainer() {
-        TrainerRegistrationRequest request = mock(TrainerRegistrationRequest.class);
-        RegistrationResponse expectedResponse = mock(RegistrationResponse.class);
-
-        User user = new User();
-        user.setFirstName("  john  ");
-        user.setLastName("smith");
-
-        TrainingType requestSpecialization = new TrainingType();
-        requestSpecialization.setTrainingTypeName("  Boxing  ");
-
-        Trainer trainer = new Trainer();
-        trainer.setUser(user);
-        trainer.setSpecialization(requestSpecialization);
+    void saveShouldNormalizeNamesResolveSpecializationAndSaveTrainer() {
+        TrainerRegistrationRequest request = new TrainerRegistrationRequest();
+        request.setFirstName("john");
+        request.setLastName("smith");
+        request.setSpecialization("  Boxing  ");
 
         TrainingType dbSpecialization = new TrainingType();
         dbSpecialization.setTrainingTypeName("Boxing");
 
-        trainerMapperMock.when(() -> TrainerMapper.toEntity(request)).thenReturn(trainer);
         passwordGeneratorMock.when(PasswordGenerator::generate).thenReturn("pass123ABC");
         when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
-        when(trainingTypeDao.findByName("Boxing")).thenReturn(dbSpecialization);
-        trainerMapperMock.when(() -> TrainerMapper.toRegistrationResponse(trainer)).thenReturn(expectedResponse);
+        when(trainingTypeRepository.findByTrainingTypeNameEqualsIgnoreCase("Boxing"))
+                .thenReturn(Optional.of(dbSpecialization));
 
-        RegistrationResponse actualResponse = trainerService.register(request);
+        RegistrationResponse response = trainerService.save(request);
 
-        assertThat(trainer.getUser().getFirstName()).isEqualTo("John");
-        assertThat(trainer.getUser().getLastName()).isEqualTo("Smith");
-        assertThat(trainer.getUser().getUsername()).isEqualTo("John.Smith");
-        assertThat(trainer.getUser().getPassword()).isEqualTo("pass123ABC");
-        assertThat(trainer.getSpecialization()).isEqualTo(dbSpecialization);
+        ArgumentCaptor<Trainer> savedCaptor = ArgumentCaptor.forClass(Trainer.class);
+        verify(trainerRepository).save(savedCaptor.capture());
+        Trainer saved = savedCaptor.getValue();
 
-        verify(trainerDao).save(trainer);
-        assertThat(actualResponse).isEqualTo(expectedResponse);
+        assertThat(saved.getUser().getFirstName()).isEqualTo("John");
+        assertThat(saved.getUser().getLastName()).isEqualTo("Smith");
+        assertThat(saved.getUser().getUsername()).isEqualTo("John.Smith");
+        assertThat(saved.getUser().getPassword()).isEqualTo("pass123ABC");
+        assertThat(saved.getSpecialization()).isEqualTo(dbSpecialization);
+
+        assertThat(response.getUsername()).isEqualTo("John.Smith");
+        assertThat(response.getPassword()).isEqualTo("pass123ABC");
+
+        verify(gymMetrics).incrementTrainerRegistration();
     }
 
     @Test
-    void registerWhenSpecializationNotFoundThrowsResourceNotFoundException() {
-        TrainerRegistrationRequest request = mock(TrainerRegistrationRequest.class);
+    void saveWhenSpecializationNotFoundThrowsResourceNotFoundException() {
+        TrainerRegistrationRequest request = new TrainerRegistrationRequest();
+        request.setFirstName("John");
+        request.setLastName("Smith");
+        request.setSpecialization("UnknownType");
 
-        User user = new User();
-        user.setFirstName("John");
-        user.setLastName("Smith");
-
-        TrainingType requestSpecialization = new TrainingType();
-        requestSpecialization.setTrainingTypeName("UnknownType");
-
-        Trainer trainer = new Trainer();
-        trainer.setUser(user);
-        trainer.setSpecialization(requestSpecialization);
-
-        trainerMapperMock.when(() -> TrainerMapper.toEntity(request)).thenReturn(trainer);
         when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
-        when(trainingTypeDao.findByName("UnknownType")).thenReturn(null);
+        when(trainingTypeRepository.findByTrainingTypeNameEqualsIgnoreCase("UnknownType"))
+                .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> trainerService.register(request))
+        assertThatThrownBy(() -> trainerService.save(request))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Specialization not found: UnknownType");
 
-        verify(trainerDao, never()).save(any());
+        verify(trainerRepository, never()).save(any());
     }
 
     @Test
-    void getProfileWithExistingUsernameReturnsProfileResponse() {
-        Trainer trainer = new Trainer();
-        TrainerProfileResponse expectedResponse = mock(TrainerProfileResponse.class);
+    void findByUsernameWithExistingUsernameReturnsProfileResponse() {
+        Trainer trainer = buildTrainer("John.Smith", "John", "Smith", "Yoga", true);
 
-        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
-        trainerMapperMock.when(() -> TrainerMapper.toProfileResponse(trainer)).thenReturn(expectedResponse);
+        when(trainerRepository.findByUser_Username("John.Smith")).thenReturn(Optional.of(trainer));
 
-        TrainerProfileResponse actualResponse = trainerService.getProfile("John.Smith");
+        TrainerProfileResponse response = trainerService.findByUsername("John.Smith");
 
-        assertThat(actualResponse).isEqualTo(expectedResponse);
+        assertThat(response.getFirstName()).isEqualTo("John");
+        assertThat(response.getLastName()).isEqualTo("Smith");
+        assertThat(response.getSpecialization()).isEqualTo("Yoga");
+        assertThat(response.getIsActive()).isTrue();
     }
 
     @Test
-    void getProfileWithUnknownUsernameThrowsResourceNotFoundException() {
-        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+    void findByUsernameWithUnknownUsernameThrowsResourceNotFoundException() {
+        when(trainerRepository.findByUser_Username("unknown")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> trainerService.getProfile("unknown"))
+        assertThatThrownBy(() -> trainerService.findByUsername("unknown"))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Trainer not found: unknown");
     }
 
     @Test
     void updateWithValidDataUpdatesAndReturnsResponse() {
-        TrainerUpdateRequest request = mock(TrainerUpdateRequest.class);
-        TrainerUpdateResponse expectedResponse = mock(TrainerUpdateResponse.class);
+        Trainer trainer = buildTrainer("John.Smith", "John", "Smith", "Yoga", true);
 
-        User user = new User();
-        user.setUsername("John.Smith");
-        Trainer trainer = new Trainer();
-        trainer.setUser(user);
+        TrainerUpdateRequest request = new TrainerUpdateRequest();
+        request.setFirstName("Johnny");
+        request.setLastName("Smithers");
+        request.setIsActive(true);
 
-        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
-        trainerMapperMock.when(() -> TrainerMapper.toUpdateResponse(trainer)).thenReturn(expectedResponse);
+        when(trainerRepository.findByUser_Username("John.Smith")).thenReturn(Optional.of(trainer));
 
-        TrainerUpdateResponse actualResponse = trainerService.update("John.Smith", request);
+        TrainerUpdateResponse response = trainerService.update("John.Smith", request);
 
-        trainerMapperMock.verify(() -> TrainerMapper.applyUpdate(trainer, request));
-        verify(trainerDao).update(trainer);
-        assertThat(actualResponse).isEqualTo(expectedResponse);
+        assertThat(trainer.getUser().getFirstName()).isEqualTo("Johnny");
+        assertThat(trainer.getUser().getLastName()).isEqualTo("Smithers");
+        assertThat(response.getFirstName()).isEqualTo("Johnny");
+        assertThat(response.getLastName()).isEqualTo("Smithers");
+        assertThat(response.getSpecialization()).isEqualTo("Yoga");
+
+        verify(trainerRepository).save(trainer);
     }
 
     @Test
     void updateWithUnknownUsernameThrowsResourceNotFoundException() {
-        TrainerUpdateRequest request = mock(TrainerUpdateRequest.class);
-        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+        TrainerUpdateRequest request = new TrainerUpdateRequest();
+        when(trainerRepository.findByUser_Username("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> trainerService.update("unknown", request))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Trainer not found: unknown");
 
-        verify(trainerDao, never()).update(any());
+        verify(trainerRepository, never()).save(any());
     }
 
     @Test
-    void setActiveWithTrueValueUpdatesStatusToActive() {
-        TrainerUpdateResponse expectedResponse = mock(TrainerUpdateResponse.class);
+    void setActiveUpdatesStatus() {
+        Trainer trainer = buildTrainer("John.Smith", "John", "Smith", "Yoga", false);
 
-        User user = new User();
-        user.setIsActive(false);
-        Trainer trainer = new Trainer();
-        trainer.setUser(user);
+        when(trainerRepository.findByUser_Username("John.Smith")).thenReturn(Optional.of(trainer));
 
-        when(trainerDao.findByUserName("John.Smith")).thenReturn(Optional.of(trainer));
-        trainerMapperMock.when(() -> TrainerMapper.toUpdateResponse(trainer)).thenReturn(expectedResponse);
-
-        TrainerUpdateResponse actualResponse = trainerService.setActive("John.Smith", true);
+        trainerService.setActive("John.Smith", true);
 
         assertThat(trainer.getUser().getIsActive()).isTrue();
-        verify(trainerDao).update(trainer);
-        assertThat(actualResponse).isEqualTo(expectedResponse);
+        verify(trainerRepository).save(trainer);
     }
 
     @Test
     void setActiveWithUnknownUsernameThrowsResourceNotFoundException() {
-        when(trainerDao.findByUserName("unknown")).thenReturn(Optional.empty());
+        when(trainerRepository.findByUser_Username("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> trainerService.setActive("unknown", true))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Trainer not found: unknown");
 
-        verify(trainerDao, never()).update(any());
+        verify(trainerRepository, never()).save(any());
+    }
+
+    private Trainer buildTrainer(String username, String firstName, String lastName,
+                                 String specializationName, boolean isActive) {
+        User user = new User();
+        user.setUsername(username);
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setIsActive(isActive);
+
+        TrainingType specialization = new TrainingType();
+        specialization.setTrainingTypeName(specializationName);
+
+        Trainer trainer = new Trainer();
+        trainer.setUser(user);
+        trainer.setSpecialization(specialization);
+        trainer.setTrainees(new HashSet<>());
+        return trainer;
     }
 }

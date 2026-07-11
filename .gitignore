@@ -5,8 +5,7 @@ build/
 !**/src/test/**/build/
 .kotlin
 .idea
-tomcat.8080
-/tomcat.8080
+.env
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

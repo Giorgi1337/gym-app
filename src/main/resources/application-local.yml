@@ -1,0 +1,15 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  docker:
+    compose:
+      lifecycle-management: start_only
+
+logging:
+  level:
+    root: INFO
+    com.gym: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

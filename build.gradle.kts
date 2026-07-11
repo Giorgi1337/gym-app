@@ -1,7 +1,13 @@
+import net.ltgt.gradle.errorprone.errorprone
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+
 plugins {
-    id("java")
+    java
+    id("org.springframework.boot") version "4.1.0"
+    id("io.spring.dependency-management") version "1.1.7"
+    id("org.openapi.generator") version "7.23.0"
+    id("net.ltgt.errorprone") version "4.2.0"
     id("jacoco")
-    id("application")
 }
 
 group = "com"
@@ -10,125 +16,136 @@ description = "Gym CRM"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(25))
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
-// Dependency Versions
-val springVersion = "7.0.7"
-val jacksonVersion = "3.2.0"
-val lombokVersion = "1.18.46"
-val logbackVersion = "1.5.34"
-val junitVersion = "6.0.0"
+val generatedDir = layout.buildDirectory.dir("generated")
 val commonsLang3Version = "3.20.0"
 val commonsTextVersion = "1.15.0"
-val jakartaAnnotVersion = "3.0.0"
-val jacocoVersion = "0.8.14"
-val mockitoVersion = "5.23.0"
-val assertjCore = "3.27.7"
-val hibernateVersion = "7.4.1.Final"
-val flywayVersion = "12.8.1"
-val tomcatVersion = "11.0.22"
-val springDocVersion = "3.0.3"
 
 repositories {
     mavenCentral()
 }
 
+springBoot {
+    buildInfo()
+}
+
 // Dependencies
 dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
+    implementation("org.flywaydb:flyway-database-postgresql")
+    compileOnly("org.projectlombok:lombok")
+    developmentOnly("org.springframework.boot:spring-boot-docker-compose")
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    runtimeOnly("org.postgresql:postgresql")
+    annotationProcessor("org.projectlombok:lombok")
 
-    // // Embedded Tomcat
-    implementation("org.apache.tomcat.embed:tomcat-embed-core:$tomcatVersion")
-    implementation("org.apache.tomcat.embed:tomcat-embed-jasper:$tomcatVersion")
-    compileOnly("jakarta.servlet:jakarta.servlet-api:6.1.0")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-scalar:3.0.3")
 
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springDocVersion")
-
-    // Spring
-    implementation("org.springframework:spring-webmvc:$springVersion")
-    implementation("org.springframework:spring-web:$springVersion")
-    implementation("org.springframework:spring-core:$springVersion")
-    implementation("org.springframework:spring-context:$springVersion")
-    implementation("org.springframework:spring-orm:$springVersion")
-    implementation("org.springframework:spring-tx:$springVersion")
-    implementation("org.springframework:spring-aop:$springVersion")
-
-    // Hibernate
-    implementation("org.hibernate.orm:hibernate-core:$hibernateVersion")
-    implementation("org.hibernate.orm:hibernate-hikaricp:$hibernateVersion")
-    implementation("org.hibernate.validator:hibernate-validator:9.1.0.Final")
-    annotationProcessor("org.hibernate.validator:hibernate-validator-annotation-processor:9.1.0.Final")
-
-    // AOP
-    implementation("org.aspectj:aspectjweaver:1.9.25.1")
-
-    // Flyway
-    implementation("org.flywaydb:flyway-core:$flywayVersion")
-    implementation("org.flywaydb:flyway-database-postgresql:$flywayVersion")
-
-    // Expression Language (required by Hibernate Validator)
-    implementation("org.glassfish.expressly:expressly:6.0.0")
-
-    // PostgreSQL
-    implementation("org.postgresql:postgresql:42.7.11")
-
-    // Jakarta
-    implementation("jakarta.annotation:jakarta.annotation-api:$jakartaAnnotVersion")
-
-    // Jackson
-    implementation("tools.jackson.core:jackson-core:$jacksonVersion")
-    implementation("tools.jackson.core:jackson-databind:$jacksonVersion")
-    implementation("tools.jackson.datatype:jackson-datatype-json-org:$jacksonVersion")
-
-    // Lombok
-    compileOnly("org.projectlombok:lombok:$lombokVersion")
-    annotationProcessor("org.projectlombok:lombok:$lombokVersion")
+    testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Utilities
-    implementation("org.apache.commons:commons-lang3:$commonsLang3Version")
-    implementation("org.apache.commons:commons-text:$commonsTextVersion")
+    implementation("org.apache.commons:commons-lang3:${commonsLang3Version}")
+    implementation("org.apache.commons:commons-text:${commonsTextVersion}")
 
-    // Logging
-    implementation("ch.qos.logback:logback-classic:$logbackVersion")
-
-    // Testing
-    testImplementation(platform("org.junit:junit-bom:$junitVersion"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("org.mockito:mockito-core:$mockitoVersion")
-    testImplementation("org.mockito:mockito-junit-jupiter:$mockitoVersion")
-    testImplementation("org.springframework:spring-test:$springVersion")
-    testImplementation("org.assertj:assertj-core:$assertjCore")
-    testImplementation("org.hamcrest:hamcrest:3.0")
-    implementation("com.jayway.jsonpath:json-path:3.0.0")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // NullAway
+    errorprone("com.google.errorprone:error_prone_core:2.50.0")
+    errorprone("com.uber.nullaway:nullaway:0.13.7")
 }
 
-// Compile
+openApiGenerate {
+    generatorName.set("spring")
+    inputSpec.set("$rootDir/src/main/resources/openapi/gym-crm.yml")
+    outputDir.set(generatedDir.get().asFile.absolutePath)
+
+    apiPackage.set("com.gym.api")
+    modelPackage.set("com.gym.dto")
+
+    importMappings.set(
+        mapOf(
+            "ErrorResponse" to "com.gym.exception.ErrorResponse"
+        )
+    )
+
+    configOptions.set(
+        mapOf(
+            "useTags"               to "true",
+            "interfaceOnly"         to "true",
+            "useDeductionForOneOfInterfaces" to "true",
+            "openApiNullable"       to "false",
+            "useBeanValidation"     to "true",
+            "performBeanValidation" to "true",
+            "useJakartaEe"          to "true",
+            "useJackson3"           to "true",
+            "useSpringBoot4"        to "true",
+            "useJspecify"           to "true",
+            "autoXSpringPaginated"  to "true",
+            "generatePageableConstraintValidation" to "true",
+            "generateSortValidation" to "true",
+        )
+    )
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir(generatedDir.map { it.dir("src/main/java") })
+        }
+    }
+}
+
+tasks.named("compileJava") {
+    dependsOn("openApiGenerate")
+}
+
 tasks.withType<JavaCompile>().configureEach {
-    options.encoding = "UTF-8"
-    options.compilerArgs.add("-parameters")
+    if (name == "compileJava") {
+        options.errorprone {
+            disableAllChecks = true
+            option("NullAway:OnlyNullMarked", "true")
+            error("NullAway")
+            option("NullAway:CustomContractAnnotations", "org.springframework.lang.Contract")
+            excludedPaths.set(".*/build/generated/.*")
+        }
+    } else {
+        options.errorprone.isEnabled.set(false)
+    }
 }
 
-// Test
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
-    jvmArgs("--enable-preview")
     finalizedBy(tasks.jacocoTestReport)
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = false
-        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        exceptionFormat = TestExceptionFormat.FULL
     }
 }
 
 // JaCoCo
 jacoco {
-    toolVersion = jacocoVersion
+    toolVersion = "0.8.15"
 }
 
 val jacocoExclusions = listOf(
-    "com/gym/dao/**",
+    "com/gym/api/**",
+    "com/gym/metrics/**",
+    "com/gym/health/**",
+    "com/gym/repository/**",
+    "com/gym/security/**",
+    "org/openapitools/**",
     "com/gym/config/**",
     "com/gym/dto/**",
     "com/gym/mapper/**",
@@ -169,9 +186,4 @@ tasks.jacocoTestCoverageVerification {
 
 tasks.check {
     dependsOn(tasks.jacocoTestCoverageVerification)
-}
-
-application {
-    mainClass.set("com.gym.GymApplication")
-    applicationDefaultJvmArgs = listOf("--enable-preview")
 }

@@ -1,0 +1,1213 @@
+openapi: 3.0.3
+info:
+  title: Gym CRM API
+  description: |
+    REST API for a Gym CRM system covering trainee and trainer registration,
+    profile management, trainer-trainee assignment, training scheduling, 
+    and training type reference data.
+
+    Authentication is not yet enforced at the API level; it will be added 
+    via Spring Security in a later iteration.
+
+    Username and password are auto-generated at registration and cannot be 
+    changed except via the dedicated change-password endpoint.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: Auth
+    description: Operations for user authentication, password changes, and validation
+  - name: Trainees
+    description: Operations for managing trainee profiles and trainee-specific workflows
+  - name: Trainers
+    description: Operations for managing trainer profiles and schedules
+  - name: Trainings
+    description: Operations for training sessions and training types reference data
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login
+      description: Validates that username and password match
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '200':
+          description: Login successful
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/{username}/password:
+    put:
+      tags:
+        - Auth
+      summary: Change password
+      description: Changes password after validating the old password
+      operationId: changePassword
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainee:
+    post:
+      tags:
+        - Trainees
+      summary: Register a new trainee
+      description: Creates a trainee profile and auto-generates a unique username and password
+      operationId: registerTrainee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TraineeRegistrationRequest'
+      responses:
+        '201':
+          description: Trainee created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+
+  /api/trainee/{username}:
+    get:
+      tags:
+        - Trainees
+      summary: Get trainee profile
+      description: Returns full trainee profile including assigned trainers
+      operationId: getProfile
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraineeProfileResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Trainees
+      summary: Update trainee profile
+      description: >
+        Updates an existing trainee's profile. firstName, lastName, and 
+        isActive are required; dateOfBirth and address are optional. 
+        Returns the updated profile including the trainee's assigned trainers.
+      operationId: updateTraineeProfile
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TraineeUpdateRequest'
+      responses:
+        '200':
+          description: Trainee profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraineeUpdateResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Trainees
+      summary: Delete trainee profile
+      description: Deletes a trainee's profile, including their user account and training history
+      operationId: deleteTraineeProfile
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trainee deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainee/{username}/unassigned-trainers:
+    get:
+      tags:
+        - Trainees
+      summary: Get active trainers not assigned to a trainee
+      description: Returns active trainers that are not yet assigned to the given trainee. Requires authentication.
+      operationId: getUnassignedTrainers
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trainers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainerSummary'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainee/{username}/trainers:
+    put:
+      tags:
+        - Trainees
+      summary: Update trainee's assigned trainers
+      description: Replaces the full list of trainers assigned to the given trainee.
+      operationId: updateTrainers
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTraineeTrainersRequest'
+      responses:
+        '200':
+          description: Trainers updated successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainerSummary'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainee or one or more trainers not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainee/{username}/status:
+    patch:
+      tags:
+        - Trainees
+      summary: Activate or deactivate trainee profile
+      description: Sets the active status of the given trainee's user account.
+      operationId: setActive
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivationRequest'
+      responses:
+        '200':
+          description: Status updated successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainers:
+    post:
+      tags:
+        - Trainers
+      summary: Register a new trainer
+      description: Creates a trainer profile and auto-generates a unique username and password
+      operationId: registerTrainer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainerRegistrationRequest'
+      responses:
+        '201':
+          description: Trainer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+
+  /api/trainers/{username}:
+    get:
+      tags:
+        - Trainers
+      summary: Get trainer profile
+      description: Returns full trainer profile including assigned trainees
+      operationId: getTrainerProfile
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerProfileResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Trainers
+      summary: Update trainer profile
+      description: >
+        Updates an existing trainer's profile. username, firstName, lastName, 
+        and isActive are required. Specialization is read-only and cannot be 
+        changed via this endpoint. Returns the updated profile including the 
+        trainer's assigned trainees.
+      operationId: updateTrainerProfile
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainerUpdateRequest'
+      responses:
+        '200':
+          description: Trainer profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerUpdateResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainers/{username}/status:
+    patch:
+      tags:
+        - Trainers
+      summary: Activate or deactivate trainer profile
+      description: Sets the active status of the given trainer's user account.
+      operationId: setTrainerActive
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivationRequest'
+      responses:
+        '200':
+          description: Status updated successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainees/{username}/trainings:
+    get:
+      tags:
+        - Trainings
+      summary: Get trainee's trainings list
+      description: Returns trainings for a trainee, optionally filtered. Requires authentication.
+      operationId: getTraineeTrainings
+      x-spring-paginated: true
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: periodFrom
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: periodTo
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: trainerName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: trainingType
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trainings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraineeTrainingPageResponse'
+        '401':
+          description: Authentication required or invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainee not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainers/{username}/trainings:
+    get:
+      tags:
+        - Trainings
+      summary: Get trainer's trainings list
+      description: Returns trainings for a trainer, optionally filtered. Requires authentication.
+      operationId: getTrainerTrainings
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: periodFrom
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: periodTo
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: traineeName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          description: Zero-based page index
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          description: Number of items per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sort
+          in: query
+          required: false
+          description: Sort criteria in the format property,(asc|desc). Repeatable for multi-field sort.
+          schema:
+            type: array
+            items:
+              type: string
+              example: trainingDate,desc
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Trainings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerTrainingPageResponse'
+        '401':
+          description: Authentication required or invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainers/{trainerUsername}/trainees/{traineeUsername}/trainings:
+    post:
+      tags:
+        - Trainings
+      summary: Add a training
+      description: Schedules a new training, expressed as a sub-resource of the trainer-trainee relationship. Requires authentication.
+      operationId: addTraining
+      parameters:
+        - name: trainerUsername
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: traineeUsername
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddTrainingRequest'
+      responses:
+        '200':
+          description: Training added successfully
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required or invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Trainee or trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/trainings/types:
+    get:
+      tags:
+        - Trainings
+      summary: Get training types
+      description: Returns the constant list of available training types.
+      operationId: getTrainingTypes
+      responses:
+        '200':
+          description: Training types retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingTypeResponse'
+
+components:
+  schemas:
+    TraineeTrainingPageResponse:
+      type: object
+      description: A page of trainee training entries
+      properties:
+        content:
+          type: array
+          description: Trainings in this page
+          items:
+            $ref: '#/components/schemas/TraineeTrainingResponse'
+        page:
+          type: integer
+          description: Current zero-based page index
+          example: 0
+        size:
+          type: integer
+          description: Requested page size
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of trainings matching the filters
+          example: 42
+        totalPages:
+          type: integer
+          description: Total number of pages available
+          example: 3
+
+    TrainerTrainingPageResponse:
+      type: object
+      description: A page of trainer training entries
+      properties:
+        content:
+          type: array
+          description: Trainings in this page
+          items:
+            $ref: '#/components/schemas/TrainerTrainingResponse'
+        page:
+          type: integer
+          description: Current zero-based page index
+          example: 0
+        size:
+          type: integer
+          description: Requested page size
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of trainings matching the filters
+          example: 42
+        totalPages:
+          type: integer
+          description: Total number of pages available
+          example: 3
+
+    ErrorResponse:
+      type: object
+      description: Standard error response body returned for all failed requests
+      properties:
+        traceId:
+          type: string
+          description: Correlation id for tracing this request through logs
+          example: 2851d36b-d73c-4757-a72a-db7c7a0176c3
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+          example: "2026-07-01T10:57:13.647431600Z"
+        status:
+          type: integer
+          description: HTTP status code
+          example: 404
+        error:
+          type: string
+          description: HTTP status reason phrase
+          example: Not Found
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Trainee not found: Nika.Beridze"
+        path:
+          type: string
+          description: Request path that produced the error
+          example: /api/trainee/Nika.Beridze
+        details:
+          type: array
+          description: Field-level validation errors, if any
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      description: A single field-level validation failure
+      properties:
+        field:
+          type: string
+          description: Name of the invalid field
+          example: firstName
+        message:
+          type: string
+          description: Reason the field is invalid
+          example: First name is required
+
+    RegistrationResponse:
+      type: object
+      description: Credentials generated for a newly registered user
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: Generated unique username
+          example: Nika.Beridze
+        password:
+          type: string
+          description: Generated password
+          example: qW3rT8yUiO
+
+    TraineeRegistrationRequest:
+      type: object
+      description: Payload for registering new trainee
+      required:
+        - firstName
+        - lastName
+      properties:
+        firstName:
+          type: string
+          description: Trainee's first name
+          example: Nika
+
+        lastName:
+          type: string
+          description: Trainee's last name
+          example: Beridze
+
+        dateOfBirth:
+          type: string
+          format: date
+          description: Date of birth
+          example: 1998-05-12
+
+        address:
+          type: string
+          description: Home address
+          example: 12 Rustaveli Ave, Tbilisi
+
+    TraineeUpdateRequest:
+      type: object
+      description: Payload for updating an existing trainee's profile
+      required:
+        - firstName
+        - lastName
+        - isActive
+      properties:
+        firstName:
+          type: string
+          description: Trainee's first name
+          example: Nika
+
+        lastName:
+          type: string
+          description: Trainee's last name
+          example: Beridze
+
+        dateOfBirth:
+          type: string
+          format: date
+          description: Date of birth
+          example: 1998-05-12
+
+        address:
+          type: string
+          description: Home address
+          example: 12 Rustaveli Ave, Tbilisi
+
+        isActive:
+          type: boolean
+          description: Whether the trainee account is active
+          example: true
+
+    TraineeUpdateResponse:
+      type: object
+      description: Updated trainee profile details, including assigned trainers
+      properties:
+        username:
+          type: string
+          description: Trainee's username
+          example: Nika.Beridze
+
+        firstName:
+          type: string
+          description: First name
+          example: Nika
+
+        lastName:
+          type: string
+          description: Last name
+          example: Beridze
+
+        dateOfBirth:
+          type: string
+          format: date
+          description: Date of birth
+          example: 1998-05-12
+
+        address:
+          type: string
+          description: Home address
+          example: Tbilisi, Georgia
+
+        isActive:
+          type: boolean
+          description: Whether the trainee account is active
+          example: true
+
+        trainers:
+          type: array
+          description: Trainers assigned to this trainee
+          items:
+            $ref: '#/components/schemas/TrainerSummary'
+
+    UpdateTraineeTrainersRequest:
+      type: object
+      description: Payload for replacing a trainee's assigned trainers
+      required:
+        - trainers
+      properties:
+        trainers:
+          type: array
+          description: Trainers to assign to the trainee
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TrainerRef'
+
+    TrainerRef:
+      type: object
+      description: Reference to a trainer by username
+      required:
+        - trainerUsername
+      properties:
+        trainerUsername:
+          type: string
+          description: Trainer's username
+          example: Levan.Tsereteli
+
+    ActivationRequest:
+      type: object
+      description: Payload for activating or deactivating a user profile
+      required:
+        - isActive
+      properties:
+        isActive:
+          type: boolean
+          description: Desired active state
+          example: false
+
+    TrainerProfileResponse:
+      type: object
+      description: Trainer profile details
+      properties:
+        firstName:
+          type: string
+          description: First name
+          example: Levan
+
+        lastName:
+          type: string
+          description: Last name
+          example: Tsereteli
+
+        specialization:
+          type: string
+          description: Trainer's specialization (training type reference)
+          example: Yoga
+
+        isActive:
+          type: boolean
+          description: Whether the trainer account is active
+          example: true
+
+        trainees:
+          type: array
+          description: Trainees assigned to this trainer
+          items:
+            $ref: '#/components/schemas/TraineeSummary'
+
+    TraineeSummary:
+      type: object
+      description: Summary of a trainee assigned to a trainer
+      properties:
+        username:
+          type: string
+          example: Nika.Beridze
+
+        firstName:
+          type: string
+          example: Nika
+
+        lastName:
+          type: string
+          example: Beridze
+
+    TrainerUpdateRequest:
+      type: object
+      description: Payload for updating an existing trainer's profile
+      required:
+        - firstName
+        - lastName
+        - isActive
+      properties:
+        firstName:
+          type: string
+          description: Trainer's first name
+          example: Levan
+
+        lastName:
+          type: string
+          description: Trainer's last name
+          example: Tsereteli
+
+        specialization:
+          type: string
+          description: Trainer's specialization (training type reference). Read-only; ignored if sent.
+          readOnly: true
+          example: Yoga
+
+        isActive:
+          type: boolean
+          description: Whether the trainer account is active
+          example: true
+
+    TrainerUpdateResponse:
+      type: object
+      description: Updated trainer profile details, including assigned trainees
+      properties:
+        username:
+          type: string
+          description: Trainer's username
+          example: Levan.Tsereteli
+
+        firstName:
+          type: string
+          description: First name
+          example: Levan
+
+        lastName:
+          type: string
+          description: Last name
+          example: Tsereteli
+
+        specialization:
+          type: string
+          description: Trainer's specialization (training type reference)
+          example: Yoga
+
+        isActive:
+          type: boolean
+          description: Whether the trainer account is active
+          example: true
+
+        trainees:
+          type: array
+          description: Trainees assigned to this trainer
+          items:
+            $ref: '#/components/schemas/TraineeSummary'
+
+    AddTrainingRequest:
+      type: object
+      description: Payload for scheduling a new training between a trainer and a trainee
+      required:
+        - trainingName
+        - trainingDate
+        - trainingDuration
+      properties:
+        trainingName:
+          type: string
+          description: Training name
+          example: Morning Yoga
+
+        trainingDate:
+          type: string
+          format: date
+          description: Training date
+          example: 2026-06-25
+
+        trainingDuration:
+          type: integer
+          description: Training duration in minutes
+          minimum: 1
+          example: 60
+
+    TraineeTrainingResponse:
+      type: object
+      description: Training entry as seen from a trainee's training list
+      properties:
+        trainingName:
+          type: string
+          description: Training name
+          example: Morning Yoga
+
+        trainingDate:
+          type: string
+          format: date
+          description: Training date
+          example: 2026-06-15
+
+        trainingType:
+          type: string
+          description: Training type (training type name)
+          example: Yoga
+
+        trainingDuration:
+          type: integer
+          description: Training duration in minutes
+          example: 60
+
+        trainerName:
+          type: string
+          description: Trainer's full name
+          example: Levan Tsereteli
+
+    TrainerTrainingResponse:
+      type: object
+      description: Training entry as seen from a trainer's training list
+      properties:
+        trainingName:
+          type: string
+          description: Training name
+          example: Morning Yoga
+
+        trainingDate:
+          type: string
+          format: date
+          description: Training date
+          example: 2026-06-15
+
+        trainingType:
+          type: string
+          description: Training type (training type name)
+          example: Yoga
+
+        trainingDuration:
+          type: integer
+          description: Training duration in minutes
+          example: 60
+
+        traineeName:
+          type: string
+          description: Trainee's full name
+          example: Nika Beridze
+
+    TrainingTypeResponse:
+      type: object
+      description: Training type reference entry
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Training type id
+          example: 1
+
+        trainingTypeName:
+          type: string
+          description: Training type name
+          example: Yoga
+
+    TrainerRegistrationRequest:
+      type: object
+      description: Payload for registering a new trainer
+      required:
+        - firstName
+        - lastName
+        - specialization
+      properties:
+        firstName:
+          type: string
+          description: Trainer's first name
+          example: Nika
+        lastName:
+          type: string
+          description: Trainer's last name
+          example: Beridze
+        specialization:
+          type: string
+          example: "Yoga"
+
+    AuthRequest:
+      type: object
+      description: Credentials used to authenticate a user
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: Username
+          example: Levan.Tsereteli
+        password:
+          type: string
+          description: Password
+          example: aZ7kP2qLmX
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - oldPassword
+        - newPassword
+      properties:
+        oldPassword:
+          type: string
+        newPassword:
+          type: string
+
+    TraineeProfileResponse:
+      type: object
+      description: Trainee profile details
+      properties:
+        firstName:
+          type: string
+          description: First name
+          example: Nika
+
+        lastName:
+          type: string
+          description: Last name
+          example: Beridze
+
+        dateOfBirth:
+          type: string
+          format: date
+          description: Date of birth
+          example: 1998-05-12
+
+        address:
+          type: string
+          description: Home address
+          example: Tbilisi, Georgia
+
+        isActive:
+          type: boolean
+          description: Whether the trainee account is active
+          example: true
+
+        trainers:
+          type: array
+          description: Trainers assigned to this trainee
+          items:
+            $ref: '#/components/schemas/TrainerSummary'
+
+    TrainerSummary:
+      type: object
+      description: Summary of a trainer assigned to a trainee
+      properties:
+        username:
+          type: string
+          example: Levan.Tsereteli
+
+        firstName:
+          type: string
+          example: Levan
+
+        lastName:
+          type: string
+          example: Tsereteli
+
+        specialization:
+          type: string
+          example: Yoga
