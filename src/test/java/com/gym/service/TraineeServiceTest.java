@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.util.Collections;
@@ -34,6 +35,7 @@ public class TraineeServiceTest {
     private TrainerRepository trainerRepository;
     private UsernameGenerator usernameGenerator;
     private GymMetrics gymMetrics;
+    private PasswordEncoder passwordEncoder;
     private TraineeService traineeService;
 
     private MockedStatic<PasswordGenerator> passwordGeneratorMock;
@@ -44,8 +46,10 @@ public class TraineeServiceTest {
         trainerRepository = mock(TrainerRepository.class);
         usernameGenerator = mock(UsernameGenerator.class);
         gymMetrics = mock(GymMetrics.class);
+        passwordEncoder = mock(PasswordEncoder.class);
 
-        traineeService = new TraineeService(traineeRepository, trainerRepository, usernameGenerator, gymMetrics);
+        traineeService = new TraineeService(
+                traineeRepository, trainerRepository, usernameGenerator, passwordEncoder, gymMetrics);
 
         passwordGeneratorMock = mockStatic(PasswordGenerator.class);
     }
@@ -64,6 +68,7 @@ public class TraineeServiceTest {
         request.setAddress("12 Rustaveli Ave, Tbilisi");
 
         passwordGeneratorMock.when(PasswordGenerator::generate).thenReturn("pass123ABC");
+        when(passwordEncoder.encode("pass123ABC")).thenReturn("encodedPassword");
         when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
 
         RegistrationResponse response = traineeService.save(request);
@@ -75,7 +80,7 @@ public class TraineeServiceTest {
         assertThat(saved.getUser().getFirstName()).isEqualTo("John");
         assertThat(saved.getUser().getLastName()).isEqualTo("Smith");
         assertThat(saved.getUser().getUsername()).isEqualTo("John.Smith");
-        assertThat(saved.getUser().getPassword()).isEqualTo("pass123ABC");
+        assertThat(saved.getUser().getPassword()).isEqualTo("encodedPassword");
 
         assertThat(response.getUsername()).isEqualTo("John.Smith");
         assertThat(response.getPassword()).isEqualTo("pass123ABC");

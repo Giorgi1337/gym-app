@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static com.gym.utils.NameUtils.normalize;
 
@@ -27,15 +28,17 @@ public class TrainerService {
     private final TrainingTypeRepository trainingTypeRepository;
     private final UsernameGenerator usernameGenerator;
     private final GymMetrics gymMetrics;
+    private final PasswordEncoder passwordEncoder;
 
     public TrainerService(TrainerRepository trainerRepository,
                           TrainingTypeRepository trainingTypeRepository,
                           UsernameGenerator usernameGenerator,
-                          GymMetrics gymMetrics) {
+                          GymMetrics gymMetrics, PasswordEncoder passwordEncoder) {
         this.trainerRepository = trainerRepository;
         this.trainingTypeRepository = trainingTypeRepository;
         this.usernameGenerator = usernameGenerator;
         this.gymMetrics = gymMetrics;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public RegistrationResponse save(TrainerRegistrationRequest request) {
@@ -46,28 +49,23 @@ public class TrainerService {
         user.setFirstName(normalize(user.getFirstName()));
         user.setLastName(normalize(user.getLastName()));
 
-        String username = usernameGenerator.generate(
-                user.getFirstName(),
-                user.getLastName()
-        );
+        String username = usernameGenerator.generate(user.getFirstName(), user.getLastName());
+        String rawPassword = PasswordGenerator.generate();
 
         user.setUsername(username);
-        user.setPassword(PasswordGenerator.generate());
+        user.setPassword(passwordEncoder.encode(rawPassword));
 
         String specializationName = StringUtils.normalizeSpace(trainer.getSpecialization().getTrainingTypeName());
-
         TrainingType specialization = trainingTypeRepository
                 .findByTrainingTypeNameEqualsIgnoreCase(specializationName)
                 .orElseThrow(() -> new ResourceNotFoundException("Specialization not found: " + specializationName));
-
         trainer.setSpecialization(specialization);
 
         trainerRepository.save(trainer);
-
         gymMetrics.incrementTrainerRegistration();
+        log.info("Registered trainer: {}", username);
 
-        log.info("Registered trainer: {}", user.getUsername());
-        return TrainerMapper.toRegistrationResponse(trainer);
+        return new RegistrationResponse(username, rawPassword);   // return raw password once, here only
     }
 
     @Transactional(readOnly = true)

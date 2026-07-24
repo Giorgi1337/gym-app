@@ -6,6 +6,7 @@ import com.gym.service.TrainingService;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
@@ -20,6 +21,7 @@ public class TrainingController implements TrainingsApi {
         this.trainingService = trainingService;
     }
 
+    @PreAuthorize("#username == authentication.name")
     public ResponseEntity<TraineeTrainingPageResponse> getTraineeTrainings(
             String username,
             @Nullable LocalDate periodFrom,
@@ -33,6 +35,7 @@ public class TrainingController implements TrainingsApi {
                         username, periodFrom, periodTo, trainerName, trainingType, pageable));
     }
 
+    @PreAuthorize("#username == authentication.name")
     public ResponseEntity<TrainerTrainingPageResponse> getTrainerTrainings(
             String username,
             @Nullable LocalDate periodFrom,
@@ -44,6 +47,7 @@ public class TrainingController implements TrainingsApi {
                 trainingService.getTrainerTrainings(username, periodFrom, periodTo, traineeName, pageable));
     }
 
+    @PreAuthorize("#trainerUsername == authentication.name")
     public ResponseEntity<Void> addTraining(
             String trainerUsername,
             String traineeUsername,

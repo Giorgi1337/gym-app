@@ -2,12 +2,14 @@ package com.gym.controller;
 
 import com.gym.dto.*;
 import com.gym.exception.ResourceNotFoundException;
+import com.gym.security.JwtAuthenticationFilter;
 import com.gym.service.TrainingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
@@ -24,6 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(TrainingController.class)
+@AutoConfigureMockMvc(addFilters = false)
 public class TrainingControllerTest {
 
     @Autowired
@@ -34,6 +37,9 @@ public class TrainingControllerTest {
 
     @MockitoBean
     private TrainingService trainingService;
+
+    @MockitoBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     private AddTrainingRequest validAddTrainingRequest;
 

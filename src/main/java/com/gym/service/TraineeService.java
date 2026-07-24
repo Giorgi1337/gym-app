@@ -14,6 +14,7 @@ import com.gym.utils.UsernameGenerator;
 import com.gym.dto.TrainerRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,42 +35,39 @@ public class TraineeService {
     private final TrainerRepository trainerRepository;
 
     private final UsernameGenerator usernameGenerator;
+    private final PasswordEncoder passwordEncoder;
     private final GymMetrics gymMetrics;
 
     public TraineeService(TraineeRepository traineeRepository,
                           TrainerRepository trainerRepository,
-                          UsernameGenerator usernameGenerator,
+                          UsernameGenerator usernameGenerator, PasswordEncoder passwordEncoder,
                           GymMetrics gymMetrics) {
         this.traineeRepository = traineeRepository;
         this.trainerRepository = trainerRepository;
         this.usernameGenerator = usernameGenerator;
+        this.passwordEncoder = passwordEncoder;
         this.gymMetrics = gymMetrics;
     }
 
     public RegistrationResponse save(TraineeRegistrationRequest request) {
 
         Trainee trainee = TraineeMapper.toEntity(request);
-
         User user = trainee.getUser();
 
         user.setFirstName(normalize(user.getFirstName()));
         user.setLastName(normalize(user.getLastName()));
 
-        String username = usernameGenerator.generate(
-                user.getFirstName(),
-                user.getLastName()
-        );
+        String username = usernameGenerator.generate(user.getFirstName(), user.getLastName());
+        String rawPassword = PasswordGenerator.generate();
 
         user.setUsername(username);
-        user.setPassword(PasswordGenerator.generate());
+        user.setPassword(passwordEncoder.encode(rawPassword));
 
         traineeRepository.save(trainee);
-
         gymMetrics.incrementTraineeRegistration();
-
         log.info("Registered trainee: {}", username);
 
-        return TraineeMapper.toRegistrationResponse(trainee);
+        return new RegistrationResponse(username, rawPassword);
     }
 
     @Transactional(readOnly = true)

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -29,6 +30,7 @@ public class TrainerServiceTest {
     private TrainingTypeRepository trainingTypeRepository;
     private UsernameGenerator usernameGenerator;
     private GymMetrics gymMetrics;
+    private PasswordEncoder passwordEncoder;
     private TrainerService trainerService;
 
     private MockedStatic<PasswordGenerator> passwordGeneratorMock;
@@ -39,8 +41,10 @@ public class TrainerServiceTest {
         trainingTypeRepository = mock(TrainingTypeRepository.class);
         usernameGenerator = mock(UsernameGenerator.class);
         gymMetrics = mock(GymMetrics.class);
+        passwordEncoder = mock(PasswordEncoder.class);
 
-        trainerService = new TrainerService(trainerRepository, trainingTypeRepository, usernameGenerator, gymMetrics);
+        trainerService = new TrainerService(
+                trainerRepository, trainingTypeRepository, usernameGenerator, gymMetrics, passwordEncoder);
 
         passwordGeneratorMock = mockStatic(PasswordGenerator.class);
     }
@@ -61,6 +65,7 @@ public class TrainerServiceTest {
         dbSpecialization.setTrainingTypeName("Boxing");
 
         passwordGeneratorMock.when(PasswordGenerator::generate).thenReturn("pass123ABC");
+        when(passwordEncoder.encode("pass123ABC")).thenReturn("encodedPassword");
         when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
         when(trainingTypeRepository.findByTrainingTypeNameEqualsIgnoreCase("Boxing"))
                 .thenReturn(Optional.of(dbSpecialization));
@@ -74,7 +79,7 @@ public class TrainerServiceTest {
         assertThat(saved.getUser().getFirstName()).isEqualTo("John");
         assertThat(saved.getUser().getLastName()).isEqualTo("Smith");
         assertThat(saved.getUser().getUsername()).isEqualTo("John.Smith");
-        assertThat(saved.getUser().getPassword()).isEqualTo("pass123ABC");
+        assertThat(saved.getUser().getPassword()).isEqualTo("encodedPassword");
         assertThat(saved.getSpecialization()).isEqualTo(dbSpecialization);
 
         assertThat(response.getUsername()).isEqualTo("John.Smith");

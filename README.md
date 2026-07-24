@@ -85,8 +85,9 @@ Base URL: `http://localhost:8080/api`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/auth/login` | Validate credentials |
-| PUT | `/auth/password` | Change password |
+| POST | `/auth/login` | Authenticate and receive a JWT |
+| POST | `/auth/logout` | Invalidate the current JWT |
+| PUT | `/auth/{username}/password` | Change password |
 
 **Login** passes credentials in the request body:
 ```json
@@ -103,6 +104,14 @@ Base URL: `http://localhost:8080/api`
    "newPassword": "Bober12345"
 }
 ```
+
+### Security
+
+The API uses stateless JWT bearer authentication. Send the login token on protected
+requests as `Authorization: Bearer <token>`. Passwords are stored with BCrypt,
+failed login attempts are temporarily rate-limited, and logged-out tokens are
+blacklisted until expiration. Registration, login, training types, and health/info
+endpoints are public; all other endpoints require authentication.
 
 ### Trainees
 

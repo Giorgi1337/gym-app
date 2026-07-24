@@ -40,12 +40,22 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
+    implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.flywaydb:flyway-database-postgresql")
     compileOnly("org.projectlombok:lombok")
     developmentOnly("org.springframework.boot:spring-boot-docker-compose")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     runtimeOnly("org.postgresql:postgresql")
     annotationProcessor("org.projectlombok:lombok")
+
+    // Utilities
+    implementation("org.apache.commons:commons-lang3:$commonsLang3Version")
+    implementation("org.apache.commons:commons-text:$commonsTextVersion")
+
+    // JWT
+    implementation("io.jsonwebtoken:jjwt-api:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
 
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-scalar:3.0.3")
 
@@ -54,11 +64,8 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-
-    // Utilities
-    implementation("org.apache.commons:commons-lang3:${commonsLang3Version}")
-    implementation("org.apache.commons:commons-text:${commonsTextVersion}")
 
     // NullAway
     errorprone("com.google.errorprone:error_prone_core:2.50.0")
