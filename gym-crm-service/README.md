@@ -8,7 +8,7 @@ Clone the repository
 
 ```bash
 git clone https://github.com/Giorgi1337/gym-app.git
-cd gym-app
+cd gym-crm-service
 ```
 
 Configure environment
