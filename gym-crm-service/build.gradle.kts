@@ -3,16 +3,16 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
     java
-    id("org.springframework.boot") version "4.1.0"
-    id("io.spring.dependency-management") version "1.1.7"
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
     id("org.openapi.generator") version "7.23.0"
     id("net.ltgt.errorprone") version "4.2.0"
     id("jacoco")
 }
 
-group = "com"
-version = "1.0-SNAPSHOT"
-description = "Gym CRM"
+group = "com.gym"
+version = "0.0.1-SNAPSHOT"
+description = "gym-crm-service"
 
 java {
     toolchain {
@@ -23,6 +23,7 @@ java {
 val generatedDir = layout.buildDirectory.dir("generated")
 val commonsLang3Version = "3.20.0"
 val commonsTextVersion = "1.15.0"
+val springCloudVersion = "2025.1.2"
 
 repositories {
     mavenCentral()
@@ -42,6 +43,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.flywaydb:flyway-database-postgresql")
+
+    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
+    implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
+
     compileOnly("org.projectlombok:lombok")
     developmentOnly("org.springframework.boot:spring-boot-docker-compose")
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
@@ -70,6 +76,12 @@ dependencies {
     // NullAway
     errorprone("com.google.errorprone:error_prone_core:2.50.0")
     errorprone("com.uber.nullaway:nullaway:0.13.7")
+}
+
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:$springCloudVersion")
+    }
 }
 
 openApiGenerate {

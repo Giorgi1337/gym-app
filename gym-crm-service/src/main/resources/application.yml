@@ -1,6 +1,6 @@
 spring:
   application:
-    name: gym-crm
+    name: gym-crm-service
 
   profiles:
     default: local
@@ -12,6 +12,9 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+server:
+  port: 8080
 
 management:
   endpoints:
