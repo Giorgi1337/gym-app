@@ -39,7 +39,7 @@ Controller interfaces and DTOs are generated automatically from the OpenAPI spec
 `src/main/resources/openapi/gym-crm.yml`, using the `openapi-generator` Gradle plugin.
 Generation runs as part of `compileJava` — no manual step needed.
 
-Generated sources land in `build/generated/src/main/java` and are not committed to the
+Generated sources land in `../build/generated/src/main/java` and are not committed to the
 repository. To change an endpoint's request/response shape or add a new one, edit the
 YAML spec; the corresponding Java interface will be regenerated on the next build.
 

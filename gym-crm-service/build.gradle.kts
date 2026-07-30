@@ -74,18 +74,12 @@ dependencies {
 
 openApiGenerate {
     generatorName.set("spring")
-    inputSpec.set("$rootDir/src/main/resources/openapi/gym-crm.yml")
+    inputSpec.set(layout.projectDirectory.file("src/main/resources/openapi/gym-crm.yml").asFile.absolutePath)
     outputDir.set(generatedDir.get().asFile.absolutePath)
 
     apiPackage.set("com.gym.api")
     modelPackage.set("com.gym.dto")
-
-    importMappings.set(
-        mapOf(
-            "ErrorResponse" to "com.gym.exception.ErrorResponse"
-        )
-    )
-
+    importMappings.set(mapOf("ErrorResponse" to "com.gym.exception.ErrorResponse"))
     configOptions.set(
         mapOf(
             "useTags"               to "true",
@@ -168,20 +162,12 @@ tasks.jacocoTestReport {
         xml.required = true
         csv.required = false
     }
-    classDirectories.setFrom(
-        files(classDirectories.files.map {
-            fileTree(it) { exclude(jacocoExclusions) }
-        })
-    )
+    classDirectories.setFrom(files(classDirectories.files.map { fileTree(it) { exclude(jacocoExclusions) } }))
 }
 
 tasks.jacocoTestCoverageVerification {
     dependsOn(tasks.jacocoTestReport)
-    classDirectories.setFrom(
-        files(classDirectories.files.map {
-            fileTree(it) { exclude(jacocoExclusions) }
-        })
-    )
+    classDirectories.setFrom(files(classDirectories.files.map { fileTree(it) { exclude(jacocoExclusions) } }))
     violationRules {
         rule {
             limit {
