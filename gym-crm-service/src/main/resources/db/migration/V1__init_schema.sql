@@ -36,7 +36,7 @@ CREATE TABLE trainings
     trainer_id        BIGINT       NOT NULL REFERENCES trainers (id),
     training_name     VARCHAR(255) NOT NULL,
     training_type_id  BIGINT       NOT NULL REFERENCES training_types (id),
-    training_date     DATE         NOT NULL,
+    training_date     TIMESTAMP WITH TIME ZONE NOT NULL,
     training_duration INTEGER      NOT NULL CHECK (training_duration > 0)
 );
 

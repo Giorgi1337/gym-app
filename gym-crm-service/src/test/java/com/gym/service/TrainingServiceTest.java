@@ -26,7 +26,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -81,8 +81,8 @@ public class TrainingServiceTest {
     @Test
     void getTraineeTrainingsReturnsMappedPageWhenTraineeExists() {
         String username = "john.doe";
-        LocalDate from = LocalDate.now().minusDays(1);
-        LocalDate to = LocalDate.now();
+        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime to = OffsetDateTime.now();
         String trainerName = "trainer";
         String type = "Yoga";
         Pageable pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "trainingDate"));
@@ -140,8 +140,8 @@ public class TrainingServiceTest {
     @Test
     void getTrainerTrainingsReturnsMappedPageWhenTrainerExists() {
         String username = "nika.doe";
-        LocalDate from = LocalDate.now().minusDays(1);
-        LocalDate to = LocalDate.now();
+        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime to = OffsetDateTime.now();
         String traineeName = "trainee";
         Pageable pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "trainingDate"));
 

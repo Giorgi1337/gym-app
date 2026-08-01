@@ -500,15 +500,21 @@ paths:
         - name: periodFrom
           in: query
           required: false
+          description: Inclusive beginning of the training date-time range
           schema:
             type: string
-            format: date
+            format: date-time
+          example: "2026-08-01T09:00:00+04:00"
+
         - name: periodTo
           in: query
           required: false
+          description: Inclusive end of the training date-time range
           schema:
             type: string
-            format: date
+            format: date-time
+          example: "2026-08-01T18:00:00+04:00"
+
         - name: trainerName
           in: query
           required: false
@@ -597,15 +603,21 @@ paths:
         - name: periodFrom
           in: query
           required: false
+          description: Inclusive beginning of the training date-time range
           schema:
             type: string
-            format: date
+            format: date-time
+          example: "2026-08-01T09:00:00+04:00"
+
         - name: periodTo
           in: query
           required: false
+          description: Inclusive end of the training date-time range
           schema:
             type: string
-            format: date
+            format: date-time
+          example: "2026-08-01T18:00:00+04:00"
+
         - name: traineeName
           in: query
           required: false
@@ -715,17 +727,35 @@ components:
       in: query
       required: false
       description: >
-        Sorting criteria in the format property,(asc|desc).
+        Sorting criteria in the format property,direction.
         Allowed properties: trainingDate, trainingName, trainingDuration.
-        Multiple sort criteria are supported (repeat the parameter).
+        Repeat the parameter for multiple sorting criteria.
       schema:
         type: array
         items:
           type: string
-          enum:
-            - trainingDate
-            - trainingName
-            - trainingDuration
+          pattern: '^(trainingDate|trainingName|trainingDuration),(asc|desc)$'
+      examples:
+        newestFirst:
+          summary: Newest trainings first
+          value:
+            - trainingDate,desc
+
+        oldestFirst:
+          summary: Oldest trainings first
+          value:
+            - trainingDate,asc
+
+        longestFirst:
+          summary: Longest trainings first
+          value:
+            - trainingDuration,desc
+
+        multipleSorts:
+          summary: Sort by date and then by training name
+          value:
+            - trainingDate,desc
+            - trainingName,asc
 
   schemas:
     LoginResponse:
@@ -1120,9 +1150,9 @@ components:
 
         trainingDate:
           type: string
-          format: date
-          description: Training date
-          example: 2026-06-25
+          format: date-time
+          description: Training date and time
+          example: "2026-06-25T09:00:00+04:00"
 
         trainingDuration:
           type: integer
@@ -1141,9 +1171,9 @@ components:
 
         trainingDate:
           type: string
-          format: date
-          description: Training date
-          example: 2026-06-15
+          format: date-time
+          description: Training date and time
+          example: "2026-06-15T05:00:00Z"
 
         trainingType:
           type: string
@@ -1171,9 +1201,9 @@ components:
 
         trainingDate:
           type: string
-          format: date
-          description: Training date
-          example: 2026-06-15
+          format: date-time
+          description: Training date and time with UTC offset
+          example: "2026-08-15T09:00:00+04:00"
 
         trainingType:
           type: string

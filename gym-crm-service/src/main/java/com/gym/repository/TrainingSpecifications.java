@@ -4,7 +4,7 @@ import com.gym.model.Training;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 public final class TrainingSpecifications {
 
@@ -20,16 +20,18 @@ public final class TrainingSpecifications {
                 cb.equal(root.get("trainer").get("user").get("username"), trainerUsername);
     }
 
-    public static Specification<Training> dateFrom(LocalDate fromDate) {
+    public static Specification<Training> dateFrom(OffsetDateTime fromDate) {
         return fromDate == null
                 ? null
-                : (root, query, cb) -> cb.greaterThanOrEqualTo(root.get("trainingDate"), fromDate);
+                : (root, query, cb) -> cb.greaterThanOrEqualTo(
+                        root.get("trainingDate"), fromDate.toInstant());
     }
 
-    public static Specification<Training> dateTo(LocalDate toDate) {
+    public static Specification<Training> dateTo(OffsetDateTime toDate) {
         return toDate == null
                 ? null
-                : (root, query, cb) -> cb.lessThanOrEqualTo(root.get("trainingDate"), toDate);
+                : (root, query, cb) -> cb.lessThanOrEqualTo(
+                        root.get("trainingDate"), toDate.toInstant());
     }
 
     public static Specification<Training> trainerUsernameEquals(String trainerUsername) {

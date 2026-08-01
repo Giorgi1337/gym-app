@@ -21,7 +21,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -53,7 +53,7 @@ public class TrainingService {
 
     @Transactional(readOnly = true)
     public TraineeTrainingPageResponse getTraineeTrainings(
-            String username, @Nullable LocalDate fromDate, @Nullable LocalDate toDate,
+            String username, @Nullable OffsetDateTime fromDate, @Nullable OffsetDateTime toDate,
             @Nullable String trainerName, @Nullable String trainingType,
             Pageable pageable) {
 
@@ -77,8 +77,8 @@ public class TrainingService {
 
     @Transactional(readOnly = true)
     public TrainerTrainingPageResponse getTrainerTrainings(
-            String username, @Nullable LocalDate fromDate,
-            @Nullable LocalDate toDate, @Nullable String traineeName,
+            String username, @Nullable OffsetDateTime fromDate,
+            @Nullable OffsetDateTime toDate, @Nullable String traineeName,
             Pageable pageable) {
 
         trainerRepository.findByUser_Username(username)

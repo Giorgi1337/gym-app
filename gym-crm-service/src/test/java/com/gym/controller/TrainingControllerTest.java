@@ -17,8 +17,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -47,7 +48,7 @@ public class TrainingControllerTest {
     void setUp() {
         validAddTrainingRequest = new AddTrainingRequest();
         validAddTrainingRequest.setTrainingName("Morning Yoga");
-        validAddTrainingRequest.setTrainingDate(LocalDate.of(2026, 6, 25));
+        validAddTrainingRequest.setTrainingDate(OffsetDateTime.parse("2026-06-25T09:00:00+04:00"));
         validAddTrainingRequest.setTrainingDuration(60);
     }
 
@@ -81,7 +82,7 @@ public class TrainingControllerTest {
     void getTraineeTrainingsWithFiltersAndPagingBindsAllParams() throws Exception {
         TraineeTrainingResponse entry = new TraineeTrainingResponse()
                 .trainingName("Morning Yoga")
-                .trainingDate(LocalDate.of(2026, 6, 15))
+                .trainingDate(OffsetDateTime.parse("2026-06-15T09:00:00+04:00"))
                 .trainingType("Yoga")
                 .trainingDuration(60)
                 .trainerName("Levan Tsereteli");
@@ -94,13 +95,13 @@ public class TrainingControllerTest {
                 .totalPages(2);
 
         when(trainingService.getTraineeTrainings(
-                eq("John.Smith"), any(LocalDate.class), any(LocalDate.class),
+                eq("John.Smith"), any(OffsetDateTime.class), any(OffsetDateTime.class),
                 eq("Levan.Tsereteli"), eq("Yoga"), any(Pageable.class)))
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/trainees/{username}/trainings", "John.Smith")
-                        .param("periodFrom", "2026-06-01")
-                        .param("periodTo", "2026-06-30")
+                        .param("periodFrom", "2026-06-01T00:00:00+04:00")
+                        .param("periodTo", "2026-06-30T23:59:59+04:00")
                         .param("trainerName", "Levan.Tsereteli")
                         .param("trainingType", "Yoga")
                         .param("page", "1")
@@ -111,15 +112,21 @@ public class TrainingControllerTest {
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.totalElements").value(6));
 
+        ArgumentCaptor<OffsetDateTime> fromCaptor = ArgumentCaptor.forClass(OffsetDateTime.class);
+        ArgumentCaptor<OffsetDateTime> toCaptor = ArgumentCaptor.forClass(OffsetDateTime.class);
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(trainingService).getTraineeTrainings(
-                eq("John.Smith"), any(LocalDate.class), any(LocalDate.class),
+                eq("John.Smith"), fromCaptor.capture(), toCaptor.capture(),
                 eq("Levan.Tsereteli"), eq("Yoga"), pageableCaptor.capture());
 
+        assertThat(fromCaptor.getValue().toInstant())
+                .isEqualTo(OffsetDateTime.parse("2026-05-31T20:00:00Z").toInstant());
+        assertThat(toCaptor.getValue().toInstant())
+                .isEqualTo(OffsetDateTime.parse("2026-06-30T19:59:59Z").toInstant());
         Pageable resolved = pageableCaptor.getValue();
         assertThat(resolved.getPageNumber()).isEqualTo(1);
         assertThat(resolved.getPageSize()).isEqualTo(5);
-        assertThat(resolved.getSort().getOrderFor("trainingDate").getDirection()).isEqualTo(Sort.Direction.DESC);
+        assertThat(Objects.requireNonNull(resolved.getSort().getOrderFor("trainingDate")).getDirection()).isEqualTo(Sort.Direction.DESC);
     }
 
     @Test
@@ -136,7 +143,7 @@ public class TrainingControllerTest {
     void getTrainerTrainingsWithValidUsernameReturnsOk() throws Exception {
         TrainerTrainingResponse entry = new TrainerTrainingResponse()
                 .trainingName("Morning Yoga")
-                .trainingDate(LocalDate.of(2026, 6, 15))
+                .trainingDate(OffsetDateTime.parse("2026-06-15T09:00:00+04:00"))
                 .trainingType("Yoga")
                 .trainingDuration(60)
                 .traineeName("John Smith");

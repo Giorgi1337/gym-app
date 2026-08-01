@@ -3,7 +3,7 @@ package com.gym.model;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
+import java.time.Instant;
 
 @Entity
 @Table(name = "trainings")
@@ -34,7 +34,7 @@ public class Training {
     private TrainingType trainingType;
 
     @Column(name = "training_date", nullable = false)
-    private LocalDate trainingDate;
+    private Instant trainingDate;
 
     @Column(name = "training_duration", nullable = false)
     private Integer trainingDuration;

@@ -6,6 +6,10 @@ import com.gym.model.Trainer;
 import com.gym.model.Training;
 import org.springframework.data.domain.Page;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+
 import static com.gym.utils.NameUtils.fullName;
 
 public final class TrainingMapper {
@@ -18,7 +22,7 @@ public final class TrainingMapper {
                 .trainer(trainer)
                 .trainingName(request.getTrainingName())
                 .trainingType(trainer.getSpecialization())
-                .trainingDate(request.getTrainingDate())
+                .trainingDate(request.getTrainingDate().toInstant())
                 .trainingDuration(request.getTrainingDuration())
                 .build();
     }
@@ -26,7 +30,7 @@ public final class TrainingMapper {
     public static TraineeTrainingResponse toTraineeView(Training training) {
         return new TraineeTrainingResponse()
                 .trainingName(training.getTrainingName())
-                .trainingDate(training.getTrainingDate())
+                .trainingDate(toUtcOffsetDateTime(training.getTrainingDate()))
                 .trainingType(training.getTrainingType().getTrainingTypeName())
                 .trainingDuration(training.getTrainingDuration())
                 .trainerName(fullName(
@@ -38,7 +42,7 @@ public final class TrainingMapper {
     public static TrainerTrainingResponse toTrainerView(Training training) {
         return new TrainerTrainingResponse()
                 .trainingName(training.getTrainingName())
-                .trainingDate(training.getTrainingDate())
+                .trainingDate(toUtcOffsetDateTime(training.getTrainingDate()))
                 .trainingType(training.getTrainingType().getTrainingTypeName())
                 .trainingDuration(training.getTrainingDuration())
                 .traineeName(fullName(
@@ -49,7 +53,12 @@ public final class TrainingMapper {
 
     public static TraineeTrainingPageResponse toTraineePage(Page<Training> page) {
         return new TraineeTrainingPageResponse()
-                .content(page.getContent().stream().map(TrainingMapper::toTraineeView).toList())
+                .content(
+                        page.getContent()
+                                .stream()
+                                .map(TrainingMapper::toTraineeView)
+                                .toList()
+                )
                 .page(page.getNumber())
                 .size(page.getSize())
                 .totalElements(page.getTotalElements())
@@ -58,10 +67,19 @@ public final class TrainingMapper {
 
     public static TrainerTrainingPageResponse toTrainerPage(Page<Training> page) {
         return new TrainerTrainingPageResponse()
-                .content(page.getContent().stream().map(TrainingMapper::toTrainerView).toList())
+                .content(
+                        page.getContent()
+                                .stream()
+                                .map(TrainingMapper::toTrainerView)
+                                .toList()
+                )
                 .page(page.getNumber())
                 .size(page.getSize())
                 .totalElements(page.getTotalElements())
                 .totalPages(page.getTotalPages());
+    }
+
+    private static OffsetDateTime toUtcOffsetDateTime(Instant dateTime) {
+        return dateTime.atOffset(ZoneOffset.UTC);
     }
 }
