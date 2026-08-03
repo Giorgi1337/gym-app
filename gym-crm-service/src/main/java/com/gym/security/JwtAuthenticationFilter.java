@@ -1,5 +1,6 @@
 package com.gym.security;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -67,7 +68,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
-        } catch (UsernameNotFoundException | io.jsonwebtoken.JwtException ex) {
+        } catch (UsernameNotFoundException | JwtException | IllegalArgumentException ex) {
             log.debug("Rejected JWT token: {}", ex.getMessage());
         }
 

@@ -656,7 +656,7 @@ paths:
       tags:
         - Trainings
       summary: Add a training
-      description: Schedules a new training, expressed as a sub-resource of the trainer-trainee relationship. Requires authentication.
+      description: Schedules a new training, expressed as a sub-resource of the trainer-trainee relationship. Save the submitted name, date, and duration because the same values identify the training when it is cancelled. Requires authentication.
       operationId: addTraining
       parameters:
         - name: trainerUsername
@@ -675,6 +675,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AddTrainingRequest'
+            example:
+              trainingName: Morning Yoga
+              trainingDate: "2026-08-05T05:00:00Z"
+              trainingDuration: 60
       responses:
         '200':
           description: Training added successfully
@@ -692,6 +696,54 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Trainee or trainer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Trainings
+      summary: Cancel a planned training
+      description: |
+        Deletes the matching non-past training and removes its duration from the trainer workload. 
+        The training name, date, and duration must exactly match the values used when the training was added. 
+        Copy the original add-training request body.
+      operationId: deleteTraining
+      parameters:
+        - name: trainerUsername
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: traineeUsername
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddTrainingRequest'
+            example:
+              trainingName: Morning Yoga
+              trainingDate: "2026-08-05T05:00:00Z"
+              trainingDuration: 60
+      responses:
+        '200':
+          description: Training cancelled successfully
+        '400':
+          description: A completed training cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+        '404':
+          description: Matching training not found
           content:
             application/json:
               schema:
@@ -1151,8 +1203,8 @@ components:
         trainingDate:
           type: string
           format: date-time
-          description: Training date and time
-          example: "2026-06-25T09:00:00+04:00"
+          description: Training date and time. Must be in the future and no more than one calendar month from the current time.
+          example: "2026-08-05T05:00:00Z"
 
         trainingDuration:
           type: integer

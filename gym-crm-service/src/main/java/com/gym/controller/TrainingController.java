@@ -57,6 +57,16 @@ public class TrainingController implements TrainingsApi {
         return ResponseEntity.ok().build();
     }
 
+    @PreAuthorize("#trainerUsername == authentication.name")
+    public ResponseEntity<Void> deleteTraining(
+            String trainerUsername,
+            String traineeUsername,
+            AddTrainingRequest addTrainingRequest) {
+
+        trainingService.deleteTraining(trainerUsername, traineeUsername, addTrainingRequest);
+        return ResponseEntity.ok().build();
+    }
+
     public ResponseEntity<List<TrainingTypeResponse>> getTrainingTypes() {
         return ResponseEntity.ok(trainingService.getTrainingTypes());
     }

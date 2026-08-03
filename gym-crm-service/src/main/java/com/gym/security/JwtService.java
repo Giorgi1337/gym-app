@@ -21,6 +21,9 @@ public class JwtService {
 
     public JwtService(@Value("${jwt.secret}") String secret,
                       @Value("${jwt.expiration-ms}") long expirationMs) {
+        if (expirationMs <= 0) {
+            throw new IllegalArgumentException("JWT expiration must be greater than zero");
+        }
         this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
         this.expirationMs = expirationMs;
     }
@@ -29,6 +32,9 @@ public class JwtService {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(username)
+                .issuer("gym-crm-service")
+                .audience().add("gym-platform").and()
+                .claim("scope", "workload.read.self")
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusMillis(expirationMs)))
                 .signWith(signingKey)
@@ -45,15 +51,11 @@ public class JwtService {
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         try {
-            String username = extractUsername(token);
-            return username.equals(userDetails.getUsername()) && !isExpired(token);
+            Claims claims = parseClaims(token);
+            return claims.getExpiration() != null && userDetails.getUsername().equals(claims.getSubject());
         } catch (JwtException | IllegalArgumentException ex) {
             return false;
         }
-    }
-
-    private boolean isExpired(String token) {
-        return extractExpiration(token).before(new Date());
     }
 
     private Claims parseClaims(String token) {

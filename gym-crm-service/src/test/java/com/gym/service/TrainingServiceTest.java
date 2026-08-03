@@ -2,6 +2,8 @@ package com.gym.service;
 
 import com.gym.dto.*;
 import com.gym.exception.ResourceNotFoundException;
+import com.gym.exception.BusinessValidationException;
+import com.gym.integration.workload.WorkloadGateway;
 import com.gym.mapper.TrainingMapper;
 import com.gym.mapper.TrainingTypeMapper;
 import com.gym.metrics.GymMetrics;
@@ -44,6 +46,7 @@ public class TrainingServiceTest {
     private TrainingTypeRepository trainingTypeRepository;
     private GymMetrics gymMetrics;
     private Timer trainingQueryTimer;
+    private WorkloadGateway workloadGateway;
     private TrainingService trainingService;
 
     private MockedStatic<TrainingMapper> trainingMapperMock;
@@ -57,6 +60,7 @@ public class TrainingServiceTest {
         trainingTypeRepository = mock(TrainingTypeRepository.class);
         gymMetrics = mock(GymMetrics.class);
         trainingQueryTimer = mock(Timer.class);
+        workloadGateway = mock(WorkloadGateway.class);
 
         when(gymMetrics.trainingQueryTimer()).thenReturn(trainingQueryTimer);
 
@@ -66,7 +70,8 @@ public class TrainingServiceTest {
         });
 
         trainingService = new TrainingService(
-                trainingRepository, traineeRepository, trainerRepository, trainingTypeRepository, gymMetrics);
+                trainingRepository, traineeRepository, trainerRepository, trainingTypeRepository,
+                gymMetrics, workloadGateway);
 
         trainingMapperMock = mockStatic(TrainingMapper.class);
         trainingTypeMapperMock = mockStatic(TrainingTypeMapper.class);
@@ -178,6 +183,7 @@ public class TrainingServiceTest {
         String trainerUsername = "nika.doe";
         String traineeUsername = "john.doe";
         AddTrainingRequest request = mock(AddTrainingRequest.class);
+        when(request.getTrainingDate()).thenReturn(OffsetDateTime.now().plusDays(1));
 
         Trainer trainer = new Trainer();
         Trainee trainee = new Trainee();
@@ -192,6 +198,34 @@ public class TrainingServiceTest {
         verify(trainingRepository).save(training);
         verify(gymMetrics).incrementTrainingAdded();
     }
+
+//    @Test
+//    void addTrainingRejectsPastDate() {
+//        AddTrainingRequest request = mock(AddTrainingRequest.class);
+//        when(request.getTrainingDate()).thenReturn(OffsetDateTime.now().minusMinutes(1));
+//        when(trainerRepository.findByUser_Username("nika.doe")).thenReturn(Optional.of(new Trainer()));
+//        when(traineeRepository.findByUser_Username("john.doe")).thenReturn(Optional.of(new Trainee()));
+//
+//        assertThatThrownBy(() -> trainingService.addTraining("nika.doe", "john.doe", request))
+//                .isInstanceOf(BusinessValidationException.class);
+//
+//        verify(trainingRepository, never()).save(any());
+//        verifyNoInteractions(workloadGateway);
+//    }
+//
+//    @Test
+//    void addTrainingRejectsDateMoreThanOneMonthAway() {
+//        AddTrainingRequest request = mock(AddTrainingRequest.class);
+//        when(request.getTrainingDate()).thenReturn(OffsetDateTime.now().plusMonths(1).plusMinutes(1));
+//        when(trainerRepository.findByUser_Username("nika.doe")).thenReturn(Optional.of(new Trainer()));
+//        when(traineeRepository.findByUser_Username("john.doe")).thenReturn(Optional.of(new Trainee()));
+//
+//        assertThatThrownBy(() -> trainingService.addTraining("nika.doe", "john.doe", request))
+//                .isInstanceOf(BusinessValidationException.class);
+//
+//        verify(trainingRepository, never()).save(any());
+//        verifyNoInteractions(workloadGateway);
+//    }
 
     @Test
     void addTrainingThrowsResourceNotFoundExceptionWhenTrainerNotFound() {

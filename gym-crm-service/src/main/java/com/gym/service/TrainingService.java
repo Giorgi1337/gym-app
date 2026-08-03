@@ -3,6 +3,10 @@ package com.gym.service;
 import com.gym.dto.*;
 import com.gym.exception.ResourceNotFoundException;
 import com.gym.mapper.TrainingMapper;
+import com.gym.exception.BusinessValidationException;
+import com.gym.exception.ErrorResponse;
+import com.gym.integration.workload.TrainerWorkloadRequest;
+import com.gym.integration.workload.WorkloadGateway;
 import org.springframework.data.domain.PageRequest;
 import com.gym.mapper.TrainingTypeMapper;
 import com.gym.metrics.GymMetrics;
@@ -22,6 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -37,18 +43,21 @@ public class TrainingService {
     private final TrainerRepository trainerRepository;
     private final TrainingTypeRepository trainingTypeRepository;
     private final GymMetrics gymMetrics;
+    private final WorkloadGateway workloadGateway;
 
     public TrainingService(
             TrainingRepository trainingRepository,
             TraineeRepository traineeRepository,
             TrainerRepository trainerRepository,
             TrainingTypeRepository trainingTypeRepository,
-            GymMetrics gymMetrics) {
+            GymMetrics gymMetrics,
+            WorkloadGateway workloadGateway) {
         this.trainingRepository = trainingRepository;
         this.traineeRepository = traineeRepository;
         this.trainerRepository = trainerRepository;
         this.trainingTypeRepository = trainingTypeRepository;
         this.gymMetrics = gymMetrics;
+        this.workloadGateway = workloadGateway;
     }
 
     @Transactional(readOnly = true)
@@ -108,7 +117,6 @@ public class TrainingService {
                 Sort.by(Sort.Direction.DESC, "trainingDate"));
     }
 
-    @Transactional
     public void addTraining(String trainerUsername, String traineeUsername, AddTrainingRequest request) {
         Trainer trainer = trainerRepository.findByUser_Username(trainerUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Trainer not found: " + trainerUsername));
@@ -120,10 +128,29 @@ public class TrainingService {
 
         Training training = TrainingMapper.toEntity(request, trainee, trainer);
         trainingRepository.save(training);
+        workloadGateway.send(training, TrainerWorkloadRequest.ActionType.ADD);
 
         gymMetrics.incrementTrainingAdded();
 
         log.info("Added training '{}' for trainer={} trainee={}",
+                request.getTrainingName(), trainerUsername, traineeUsername);
+    }
+
+    public void deleteTraining(String trainerUsername, String traineeUsername, AddTrainingRequest request) {
+        Training training = trainingRepository
+                .findMatchingTrainings(
+                        trainerUsername, traineeUsername, request.getTrainingName().trim(),
+                        request.getTrainingDate().toInstant(), request.getTrainingDuration())
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Matching training not found"));
+        if (training.getTrainingDate().isBefore(Instant.now())) {
+            throw new BusinessValidationException(List.of(
+                    new ErrorResponse.FieldError("trainingDate", "A past training cannot be deleted")));
+        }
+        workloadGateway.send(training, TrainerWorkloadRequest.ActionType.DELETE);
+        trainingRepository.delete(training);
+        log.info("Cancelled training '{}' for trainer={} trainee={}",
                 request.getTrainingName(), trainerUsername, traineeUsername);
     }
 
@@ -148,22 +175,26 @@ public class TrainingService {
         };
     }
 
-//    private void validateTrainingDate(LocalDate trainingDate) {
-//        final int MAX_SCHEDULING_WINDOW_DAYS = 14;
-//
-//        LocalDate today = LocalDate.now();
-//        LocalDate latestAllowed = today.plusDays(MAX_SCHEDULING_WINDOW_DAYS);
-//
-//        if (trainingDate.isBefore(today)) {
-//            throw new BusinessValidationException(List.of(
-//                    new ErrorResponse.FieldError("trainingDate", "Training date cannot be in the past")));
-//        }
-//
-//        if (trainingDate.isAfter(latestAllowed)) {
-//            throw new BusinessValidationException(List.of(
-//                    new ErrorResponse.FieldError(
-//                            "trainingDate",
-//                            "Training date must be within the next %d days".formatted(MAX_SCHEDULING_WINDOW_DAYS))));
-//        }
-//    }
+    private void validateTrainingDate(OffsetDateTime trainingDate) {
+        final int MAX_SCHEDULING_WINDOW_MONTHS = 1;
+        Instant now = Instant.now();
+        Instant latestAllowed = now.atOffset(ZoneOffset.UTC)
+                .plusMonths(MAX_SCHEDULING_WINDOW_MONTHS)
+                .toInstant();
+        Instant requestedDate = trainingDate.toInstant();
+
+        if (!requestedDate.isAfter(now)) {
+            throw new BusinessValidationException(List.of(
+                    new ErrorResponse.FieldError(
+                            "trainingDate",
+                            "Training date must be in the future")));
+        }
+
+        if (requestedDate.isAfter(latestAllowed)) {
+            throw new BusinessValidationException(List.of(
+                    new ErrorResponse.FieldError(
+                            "trainingDate",
+                            "Training date must be within the next month")));
+        }
+    }
 }

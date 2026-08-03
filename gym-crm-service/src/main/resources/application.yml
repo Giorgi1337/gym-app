@@ -67,3 +67,23 @@ logging:
   level:
     root: INFO
     com.gym: INFO
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      trainerWorkload:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        ignore-exceptions:
+          - feign.FeignException$FeignClientException
+  retry:
+    instances:
+      trainerWorkload:
+        max-attempts: 3
+        wait-duration: 300ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - feign.FeignException$FeignClientException

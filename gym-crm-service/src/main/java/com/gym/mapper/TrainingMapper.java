@@ -20,7 +20,7 @@ public final class TrainingMapper {
         return Training.builder()
                 .trainee(trainee)
                 .trainer(trainer)
-                .trainingName(request.getTrainingName())
+                .trainingName(request.getTrainingName().trim())
                 .trainingType(trainer.getSpecialization())
                 .trainingDate(request.getTrainingDate().toInstant())
                 .trainingDuration(request.getTrainingDuration())

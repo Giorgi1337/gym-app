@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: trainer-workload-service
+
+  profiles:
+    default: local
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  info:
+    java:
+      enabled: true
+    os:
+      enabled: true
+    build:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.gym.workload: INFO

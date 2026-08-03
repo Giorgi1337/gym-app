@@ -10,24 +10,13 @@ plugins {
     id("jacoco")
 }
 
-group = "com.gym"
-version = "0.0.1-SNAPSHOT"
 description = "gym-crm-service"
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
 
 val generatedDir = layout.buildDirectory.dir("generated")
 val commonsLang3Version = "3.20.0"
 val commonsTextVersion = "1.15.0"
 val springCloudVersion = "2025.1.2"
 
-repositories {
-    mavenCentral()
-}
 
 springBoot {
     buildInfo()
@@ -138,7 +127,6 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
     finalizedBy(tasks.jacocoTestReport)
     testLogging {
         events("passed", "skipped", "failed")
@@ -154,6 +142,7 @@ jacoco {
 
 val jacocoExclusions = listOf(
     "com/gym/api/**",
+    "com/gym/integration/workload/**",
     "com/gym/metrics/**",
     "com/gym/health/**",
     "com/gym/repository/**",

@@ -4,19 +4,7 @@ plugins {
     id("io.spring.dependency-management")
 }
 
-group = "com.gym"
-version = "0.0.1-SNAPSHOT"
 description = "discovery-service"
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
-
-repositories {
-    mavenCentral()
-}
 
 extra["springCloudVersion"] = "2025.1.2"
 
@@ -33,6 +21,3 @@ dependencyManagement {
     }
 }
 
-tasks.withType<Test> {
-    useJUnitPlatform()
-}
