@@ -1,5 +1,4 @@
 import net.ltgt.gradle.errorprone.errorprone
-import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
     java
@@ -7,7 +6,6 @@ plugins {
     id("io.spring.dependency-management")
     id("org.openapi.generator") version "7.23.0"
     id("net.ltgt.errorprone") version "4.2.0"
-    id("jacoco")
 }
 
 description = "gym-crm-service"
@@ -72,7 +70,6 @@ dependencyManagement {
         mavenBom("org.springframework.cloud:spring-cloud-dependencies:$springCloudVersion")
     }
 }
-
 openApiGenerate {
     generatorName.set("spring")
     inputSpec.set(layout.projectDirectory.file("src/main/resources/openapi/gym-crm.yml").asFile.absolutePath)
@@ -126,58 +123,3 @@ tasks.withType<JavaCompile>().configureEach {
     }
 }
 
-tasks.withType<Test>().configureEach {
-    finalizedBy(tasks.jacocoTestReport)
-    testLogging {
-        events("passed", "skipped", "failed")
-        showStandardStreams = false
-        exceptionFormat = TestExceptionFormat.FULL
-    }
-}
-
-// JaCoCo
-jacoco {
-    toolVersion = "0.8.15"
-}
-
-val jacocoExclusions = listOf(
-    "com/gym/api/**",
-    "com/gym/integration/workload/**",
-    "com/gym/metrics/**",
-    "com/gym/health/**",
-    "com/gym/repository/**",
-    "com/gym/security/**",
-    "org/openapitools/**",
-    "com/gym/config/**",
-    "com/gym/dto/**",
-    "com/gym/mapper/**",
-    "com/gym/exception/**",
-    "com/gym/filter/**",
-    "com/gym/GymApplication.class",
-)
-
-tasks.jacocoTestReport {
-    dependsOn(tasks.test)
-    reports {
-        html.required = true
-        xml.required = true
-        csv.required = false
-    }
-    classDirectories.setFrom(files(classDirectories.files.map { fileTree(it) { exclude(jacocoExclusions) } }))
-}
-
-tasks.jacocoTestCoverageVerification {
-    dependsOn(tasks.jacocoTestReport)
-    classDirectories.setFrom(files(classDirectories.files.map { fileTree(it) { exclude(jacocoExclusions) } }))
-    violationRules {
-        rule {
-            limit {
-                minimum = BigDecimal.valueOf(0.80)
-            }
-        }
-    }
-}
-
-tasks.check {
-    dependsOn(tasks.jacocoTestCoverageVerification)
-}

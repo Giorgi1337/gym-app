@@ -20,6 +20,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -64,7 +65,7 @@ public class TrainingServiceTest {
 
         when(gymMetrics.trainingQueryTimer()).thenReturn(trainingQueryTimer);
 
-        when(trainingQueryTimer.record(any(Supplier.class))).thenAnswer(invocation -> {
+        when(trainingQueryTimer.record(ArgumentMatchers.<Supplier<Object>>any())).thenAnswer(invocation -> {
             Supplier<?> supplier = invocation.getArgument(0);
             return supplier.get();
         });
@@ -98,7 +99,7 @@ public class TrainingServiceTest {
         TraineeTrainingPageResponse expectedResponse = mock(TraineeTrainingPageResponse.class);
 
         when(traineeRepository.findByUser_Username(username)).thenReturn(Optional.of(trainee));
-        when(trainingRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(page);
+        when(trainingRepository.findAll(ArgumentMatchers.<Specification<Training>>any(), eq(pageable))).thenReturn(page);
         trainingMapperMock.when(() -> TrainingMapper.toTraineePage(page)).thenReturn(expectedResponse);
 
         TraineeTrainingPageResponse result =
@@ -119,7 +120,8 @@ public class TrainingServiceTest {
         when(traineeRepository.findByUser_Username(username)).thenReturn(Optional.of(trainee));
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-        when(trainingRepository.findAll(any(Specification.class), pageableCaptor.capture())).thenReturn(page);
+        when(trainingRepository.findAll(
+                ArgumentMatchers.<Specification<Training>>any(), pageableCaptor.capture())).thenReturn(page);
         trainingMapperMock.when(() -> TrainingMapper.toTraineePage(page)).thenReturn(expectedResponse);
 
         trainingService.getTraineeTrainings(username, null, null, null, null, unsorted);
@@ -156,7 +158,7 @@ public class TrainingServiceTest {
         TrainerTrainingPageResponse expectedResponse = mock(TrainerTrainingPageResponse.class);
 
         when(trainerRepository.findByUser_Username(username)).thenReturn(Optional.of(trainer));
-        when(trainingRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(page);
+        when(trainingRepository.findAll(ArgumentMatchers.<Specification<Training>>any(), eq(pageable))).thenReturn(page);
         trainingMapperMock.when(() -> TrainingMapper.toTrainerPage(page)).thenReturn(expectedResponse);
 
         TrainerTrainingPageResponse result =
