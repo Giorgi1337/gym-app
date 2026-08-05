@@ -5,7 +5,7 @@ build/
 !**/src/test/**/build/
 .kotlin
 .idea
-gym-crm-service/.env
+.env
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

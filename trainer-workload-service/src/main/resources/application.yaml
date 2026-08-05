@@ -10,6 +10,12 @@ spring:
     user: ${ACTIVEMQ_USER:admin}
     password: ${ACTIVEMQ_PASSWORD:admin}
 
+  data:
+    mongodb:
+      auto-index-creation: true
+  mongodb:
+    uri: ${MONGODB_URI:mongodb://localhost:27017/trainer_workload}
+
 messaging:
   workload:
     queue: trainer.workload

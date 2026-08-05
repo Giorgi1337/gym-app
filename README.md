@@ -13,7 +13,7 @@ A multi-service Spring Boot application for managing gym trainees, trainers, tra
 ## Requirements
 
 - Java 25
-- Docker (for PostgreSQL and ActiveMQ Artemis)
+- Docker (for PostgreSQL, ActiveMQ Artemis, and MongoDB)
 
 ## Getting Started
 
@@ -26,16 +26,16 @@ cd gym-app
 
 Run all remaining commands from the repository root. The project uses a single Gradle wrapper.
 
-Create the local CRM environment file:
+Create the local environment file (optional because Compose provides development defaults):
 
 ```bash
-cp gym-crm-service/.env.example gym-crm-service/.env
+cp .env.example .env
 ```
 
 On Windows PowerShell, use:
 
 ```powershell
-Copy-Item gym-crm-service/.env.example gym-crm-service/.env
+Copy-Item .env.example .env
 ```
 
 Build and test the project:
@@ -52,7 +52,7 @@ Start each service in a separate terminal, in the following order:
 ./gradlew :gym-crm-service:bootRun
 ```
 
-Use `gradlew.bat` instead of `./gradlew` on Windows. With the default `local` profile, the CRM service starts PostgreSQL and ActiveMQ Artemis from `gym-crm-service/docker-compose.yml`.
+Use `gradlew.bat` instead of `./gradlew` on Windows. With the default `local` profile, the CRM service starts PostgreSQL, ActiveMQ Artemis, and MongoDB from the root `docker-compose.yml`.
 
 Training changes are published asynchronously to the `trainer.workload` queue. The workload service validates and consumes those events; messages missing required data are moved to `trainer.workload.dlq` with a `validationErrors` property.
 
@@ -133,5 +133,5 @@ The CRM controller interfaces and DTOs are generated from `gym-crm-service/src/m
 ## Stopping Local Infrastructure
 
 ```bash
-docker compose -f gym-crm-service/docker-compose.yml down
+docker compose down
 ```

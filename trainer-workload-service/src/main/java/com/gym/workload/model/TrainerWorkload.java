@@ -1,20 +1,48 @@
 package com.gym.workload.model;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
 
+@Document(collection = "trainer_training_summaries")
+@CompoundIndex(name = "trainer_name_idx", def = "{'firstName': 1, 'lastName': 1}")
 @Getter
+@Setter
+@NoArgsConstructor
 public class TrainerWorkload {
 
-    private final String username;
-    private volatile String firstName;
-    private volatile String lastName;
-    private volatile boolean active;
+    @Id
+    private String id;
 
-    // year -> month -> total minutes
-    private final ConcurrentHashMap<Integer, ConcurrentHashMap<Integer, AtomicInteger>> yearlyData = new ConcurrentHashMap<>();
+    @NotBlank
+    @Indexed(unique = true)
+    private String username;
+
+    @NotBlank
+    private String firstName;
+
+    @NotBlank
+    private String lastName;
+
+    @NotNull
+    private Boolean active;
+
+    @Valid
+    @NotNull
+    private List<YearSummary> years = new ArrayList<>();
 
     public TrainerWorkload(String username, String firstName, String lastName, boolean active) {
         this.username = username;
@@ -23,22 +51,29 @@ public class TrainerWorkload {
         this.active = active;
     }
 
-    public synchronized void applyDelta(int year, int month, int minutesDelta) {
-        AtomicInteger total = yearlyData
-                .computeIfAbsent(year, y -> new ConcurrentHashMap<>())
-                .computeIfAbsent(month, m -> new AtomicInteger(0));
-        int updated = total.updateAndGet(current -> Math.max(0, current + minutesDelta));
-        if (updated == 0) {
-            yearlyData.get(year).remove(month, total);
-            if (yearlyData.get(year).isEmpty()) {
-                yearlyData.remove(year);
-            }
-        }
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class YearSummary {
+        @Min(1)
+        private int year;
+
+        @Valid
+        @NotNull
+        private List<MonthSummary> months = new ArrayList<>();
     }
 
-    public void updateProfile(String firstName, String lastName, boolean active) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.active = active;
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MonthSummary {
+        @Min(1)
+        @Max(12)
+        private int month;
+
+        @Min(0)
+        private int trainingSummaryDuration;
     }
 }

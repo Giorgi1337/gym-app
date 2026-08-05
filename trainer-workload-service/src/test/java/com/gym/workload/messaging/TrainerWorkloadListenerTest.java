@@ -33,7 +33,7 @@ class TrainerWorkloadListenerTest {
                 "nika.beridze", "Nika", "Beridze", true,
                 LocalDate.of(2026, 8, 4), 60, TrainerWorkloadRequest.ActionType.ADD);
 
-        listener.receive(request);
+        listener.receive(request, "tx-123");
 
         verify(service).applyWorkload(request);
         verifyNoInteractions(jmsTemplate);
@@ -45,7 +45,7 @@ class TrainerWorkloadListenerTest {
                 null, "Nika", "Beridze", true,
                 LocalDate.of(2026, 8, 4), 0, null);
 
-        listener.receive(request);
+        listener.receive(request, "tx-123");
 
         verifyNoInteractions(service);
         verify(jmsTemplate).convertAndSend(
