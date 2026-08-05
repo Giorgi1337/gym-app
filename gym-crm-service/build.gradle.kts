@@ -57,6 +57,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-security-test")
+    testImplementation("io.cucumber:cucumber-java:7.34.6")
+    testImplementation("io.cucumber:cucumber-junit-platform-engine:7.34.6")
+    testImplementation("org.junit.platform:junit-platform-suite:6.1.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // NullAway
