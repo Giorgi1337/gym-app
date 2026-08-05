@@ -13,7 +13,7 @@ A multi-service Spring Boot application for managing gym trainees, trainers, tra
 ## Requirements
 
 - Java 25
-- Docker (for the local PostgreSQL database)
+- Docker (for PostgreSQL and ActiveMQ Artemis)
 
 ## Getting Started
 
@@ -52,7 +52,9 @@ Start each service in a separate terminal, in the following order:
 ./gradlew :gym-crm-service:bootRun
 ```
 
-Use `gradlew.bat` instead of `./gradlew` on Windows. With the default `local` profile, the CRM service starts the PostgreSQL container defined in `gym-crm-service/docker-compose.yml`.
+Use `gradlew.bat` instead of `./gradlew` on Windows. With the default `local` profile, the CRM service starts PostgreSQL and ActiveMQ Artemis from `gym-crm-service/docker-compose.yml`.
+
+Training changes are published asynchronously to the `trainer.workload` queue. The workload service validates and consumes those events; messages missing required data are moved to `trainer.workload.dlq` with a `validationErrors` property.
 
 ## Service URLs
 
@@ -116,7 +118,6 @@ These endpoints are provided by `trainer-workload-service` on port `8081`.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| POST | `/api/trainers/{username}/workload` | Add or remove a trainer workload entry |
 | GET | `/api/trainers/{username}/workload/summary` | Get the trainer's monthly workload summary |
 
 ## OpenAPI Code Generation
@@ -129,7 +130,7 @@ The CRM controller interfaces and DTOs are generated from `gym-crm-service/src/m
 ./gradlew test
 ```
 
-## Stopping PostgreSQL
+## Stopping Local Infrastructure
 
 ```bash
 docker compose -f gym-crm-service/docker-compose.yml down

@@ -5,6 +5,16 @@ spring:
   profiles:
     default: local
 
+  artemis:
+    broker-url: ${ACTIVEMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${ACTIVEMQ_USER:admin}
+    password: ${ACTIVEMQ_PASSWORD:admin}
+
+messaging:
+  workload:
+    queue: trainer.workload
+    dead-letter-queue: trainer.workload.dlq
+
 server:
   port: 8081
 

@@ -17,6 +17,15 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  artemis:
+    broker-url: ${ACTIVEMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${ACTIVEMQ_USER:admin}
+    password: ${ACTIVEMQ_PASSWORD:admin}
+
+messaging:
+  workload:
+    queue: trainer.workload
+
 server:
   port: 8080
 
@@ -67,23 +76,3 @@ logging:
   level:
     root: INFO
     com.gym: INFO
-
-resilience4j:
-  circuitbreaker:
-    instances:
-      trainerWorkload:
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 10s
-        ignore-exceptions:
-          - feign.FeignException$FeignClientException
-  retry:
-    instances:
-      trainerWorkload:
-        max-attempts: 3
-        wait-duration: 300ms
-        enable-exponential-backoff: true
-        exponential-backoff-multiplier: 2
-        ignore-exceptions:
-          - feign.FeignException$FeignClientException

@@ -44,19 +44,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
     }
 
-    @ExceptionHandler(DownstreamServiceUnavailableException.class)
-    public ResponseEntity<ErrorResponse> handleDownstreamUnavailable(DownstreamServiceUnavailableException ex, HttpServletRequest request) {
-        log.error("Downstream service unavailable: {}", ex.getMessage());
-        return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(DownstreamRequestRejectedException.class)
-    public ResponseEntity<ErrorResponse> handleDownstreamRejected(
-            DownstreamRequestRejectedException ex, HttpServletRequest request) {
-        log.error("Downstream rejected an internally generated request: {}", ex.getMessage());
-        return build(HttpStatus.BAD_GATEWAY, ex.getMessage(), request);
-    }
-
     @ExceptionHandler(AuthorizationDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAuthorizationDenied(AuthorizationDeniedException ex, HttpServletRequest request) {
         log.warn("Access denied: {} {}", request.getMethod(), request.getRequestURI());

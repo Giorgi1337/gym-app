@@ -19,10 +19,6 @@ jwt:
   secret: ${JWT_SECRET:am9pbndhdGNocm91dGVkcmVzc3JlY2VpdmVyZWFsY292ZXJtZWJhc2lzZmlsbWFzY2E=}
   expiration-ms: 3600000 # 1 hour
 
-service:
-  jwt:
-    expiration-ms: 300000
-
 security:
   brute-force:
     max-attempts: 3
