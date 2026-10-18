@@ -1,25 +1,33 @@
 package com.gym.service;
 
-import com.gym.dto.*;
-import com.gym.mapper.TraineeMapper;
-import com.gym.mapper.TrainerMapper;
-import com.gym.metrics.GymMetrics;
-import com.gym.model.*;
-import com.gym.exception.ResourceNotFoundException;
-import com.gym.repository.TraineeRepository;
+import com.gym.dto.RegistrationResponse;
+import com.gym.dto.TraineeProfileResponse;
+import com.gym.dto.TraineeRegistrationRequest;
+import com.gym.dto.TraineeUpdateRequest;
+import com.gym.dto.TraineeUpdateResponse;
+import com.gym.dto.TrainerRef;
 import com.gym.dto.TrainerSummary;
+import com.gym.dto.UpdateTraineeTrainersRequest;
+import com.gym.exception.ResourceNotFoundException;
+import com.gym.metrics.GymMetrics;
+import com.gym.model.Trainee;
+import com.gym.model.Trainer;
+import com.gym.model.User;
+import com.gym.repository.TraineeRepository;
 import com.gym.repository.TrainerRepository;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
-import com.gym.dto.TrainerRef;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,38 +35,36 @@ import static com.gym.utils.NameUtils.normalize;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class TraineeService {
 
     private static final Logger log = LoggerFactory.getLogger(TraineeService.class);
 
     private final TraineeRepository traineeRepository;
     private final TrainerRepository trainerRepository;
-
     private final UsernameGenerator usernameGenerator;
+    private final PasswordGenerator passwordGenerator;
     private final PasswordEncoder passwordEncoder;
     private final GymMetrics gymMetrics;
 
-    public TraineeService(TraineeRepository traineeRepository,
-                          TrainerRepository trainerRepository,
-                          UsernameGenerator usernameGenerator, PasswordEncoder passwordEncoder,
-                          GymMetrics gymMetrics) {
-        this.traineeRepository = traineeRepository;
-        this.trainerRepository = trainerRepository;
-        this.usernameGenerator = usernameGenerator;
-        this.passwordEncoder = passwordEncoder;
-        this.gymMetrics = gymMetrics;
-    }
-
     public RegistrationResponse save(TraineeRegistrationRequest request) {
 
-        Trainee trainee = TraineeMapper.toEntity(request);
+        Trainee trainee = Trainee.builder()
+                .user(User.builder()
+                        .firstName(request.getFirstName())
+                        .lastName(request.getLastName())
+                        .isActive(true)
+                        .build())
+                .dateOfBirth(request.getDateOfBirth())
+                .address(request.getAddress())
+                .build();
         User user = trainee.getUser();
 
         user.setFirstName(normalize(user.getFirstName()));
         user.setLastName(normalize(user.getLastName()));
 
         String username = usernameGenerator.generate(user.getFirstName(), user.getLastName());
-        String rawPassword = PasswordGenerator.generate();
+        String rawPassword = passwordGenerator.generate();
 
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(rawPassword));
@@ -75,7 +81,14 @@ public class TraineeService {
         Trainee trainee = traineeRepository.findByUser_Username(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
 
-        return TraineeMapper.toProfileResponse(trainee);
+        User user = trainee.getUser();
+        return new TraineeProfileResponse()
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .dateOfBirth(trainee.getDateOfBirth())
+                .address(trainee.getAddress())
+                .isActive(user.getIsActive())
+                .trainers(toTrainerSummaries(trainee));
     }
 
     @Transactional
@@ -83,11 +96,23 @@ public class TraineeService {
         Trainee trainee = traineeRepository.findByUser_Username(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
 
-        TraineeMapper.applyUpdate(trainee, request);
+        User user = trainee.getUser();
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setIsActive(request.getIsActive());
+        trainee.setDateOfBirth(request.getDateOfBirth());
+        trainee.setAddress(request.getAddress());
         traineeRepository.save(trainee);
 
         log.info("Updated trainee: {}", trainee.getUser().getUsername());
-        return TraineeMapper.toUpdateResponse(trainee);
+        return new TraineeUpdateResponse()
+                .username(trainee.getUser().getUsername())
+                .firstName(trainee.getUser().getFirstName())
+                .lastName(trainee.getUser().getLastName())
+                .dateOfBirth(trainee.getDateOfBirth())
+                .address(trainee.getAddress())
+                .isActive(trainee.getUser().getIsActive())
+                .trainers(toTrainerSummaries(trainee));
     }
 
     @Transactional
@@ -106,7 +131,7 @@ public class TraineeService {
 
         return traineeRepository.findUnassignedTrainers(username).stream()
                 .filter(trainer -> Boolean.TRUE.equals(trainer.getUser().getIsActive()))
-                .map(TrainerMapper::toSummary)
+                .map(this::toTrainerSummary)
                 .toList();
     }
 
@@ -139,8 +164,27 @@ public class TraineeService {
         log.info("Updated trainer list for trainee: {}", username);
 
         return trainers.stream()
-                .map(TrainerMapper::toSummary)
+                .map(this::toTrainerSummary)
                 .toList();
+    }
+
+    private List<TrainerSummary> toTrainerSummaries(Trainee trainee) {
+        if (trainee.getTrainers() == null || trainee.getTrainers().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return trainee.getTrainers().stream()
+                .filter(Objects::nonNull)
+                .map(this::toTrainerSummary)
+                .toList();
+    }
+
+    private TrainerSummary toTrainerSummary(Trainer trainer) {
+        User user = trainer.getUser();
+        return new TrainerSummary()
+                .username(user.getUsername())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .specialization(trainer.getSpecialization().getTrainingTypeName());
     }
 
     @Transactional

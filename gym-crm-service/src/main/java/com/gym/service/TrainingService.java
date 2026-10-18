@@ -2,23 +2,22 @@ package com.gym.service;
 
 import com.gym.dto.*;
 import com.gym.exception.ResourceNotFoundException;
-import com.gym.mapper.TrainingMapper;
 import com.gym.exception.BusinessValidationException;
 import com.gym.exception.ErrorResponse;
 import com.gym.integration.workload.TrainerWorkloadRequest;
 import com.gym.integration.workload.WorkloadGateway;
-import org.springframework.data.domain.PageRequest;
-import com.gym.mapper.TrainingTypeMapper;
 import com.gym.metrics.GymMetrics;
 import com.gym.model.Trainee;
 import com.gym.model.Trainer;
 import com.gym.model.Training;
 import com.gym.repository.*;
+import com.gym.utils.NameUtils;
 import jakarta.persistence.criteria.Predicate;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -81,7 +80,12 @@ public class TrainingService {
         Page<Training> result = gymMetrics.trainingQueryTimer()
                 .record(() -> trainingRepository.findAll(spec, resolvedPageable));
 
-        return TrainingMapper.toTraineePage(result);
+        return new TraineeTrainingPageResponse()
+                .content(result.getContent().stream().map(this::toTraineeTraining).toList())
+                .page(result.getNumber())
+                .size(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages());
     }
 
     @Transactional(readOnly = true)
@@ -104,7 +108,12 @@ public class TrainingService {
         Page<Training> result = gymMetrics.trainingQueryTimer()
                 .record(() -> trainingRepository.findAll(spec, resolvedPageable));
 
-        return TrainingMapper.toTrainerPage(result);
+        return new TrainerTrainingPageResponse()
+                .content(result.getContent().stream().map(this::toTrainerTraining).toList())
+                .page(result.getNumber())
+                .size(result.getSize())
+                .totalElements(result.getTotalElements())
+                .totalPages(result.getTotalPages());
     }
 
     private static Pageable withDefaultSort(Pageable pageable) {
@@ -126,7 +135,14 @@ public class TrainingService {
 
 //        validateTrainingDate(request.getTrainingDate());
 
-        Training training = TrainingMapper.toEntity(request, trainee, trainer);
+        Training training = Training.builder()
+                .trainee(trainee)
+                .trainer(trainer)
+                .trainingName(request.getTrainingName().trim())
+                .trainingType(trainer.getSpecialization())
+                .trainingDate(request.getTrainingDate().toInstant())
+                .trainingDuration(request.getTrainingDuration())
+                .build();
         trainingRepository.save(training);
         workloadGateway.send(training, TrainerWorkloadRequest.ActionType.ADD);
 
@@ -157,8 +173,32 @@ public class TrainingService {
     @Transactional(readOnly = true)
     public List<TrainingTypeResponse> getTrainingTypes() {
         return trainingTypeRepository.findAll().stream()
-                .map(TrainingTypeMapper::toResponse)
+                .map(type -> new TrainingTypeResponse()
+                        .id(type.getId())
+                        .trainingTypeName(type.getTrainingTypeName()))
                 .toList();
+    }
+
+    private TraineeTrainingResponse toTraineeTraining(Training training) {
+        return new TraineeTrainingResponse()
+                .trainingName(training.getTrainingName())
+                .trainingDate(training.getTrainingDate().atOffset(ZoneOffset.UTC))
+                .trainingType(training.getTrainingType().getTrainingTypeName())
+                .trainingDuration(training.getTrainingDuration())
+                .trainerName(NameUtils.fullName(
+                        training.getTrainer().getUser().getFirstName(),
+                        training.getTrainer().getUser().getLastName()));
+    }
+
+    private TrainerTrainingResponse toTrainerTraining(Training training) {
+        return new TrainerTrainingResponse()
+                .trainingName(training.getTrainingName())
+                .trainingDate(training.getTrainingDate().atOffset(ZoneOffset.UTC))
+                .trainingType(training.getTrainingType().getTrainingTypeName())
+                .trainingDuration(training.getTrainingDuration())
+                .traineeName(NameUtils.fullName(
+                        training.getTrainee().getUser().getFirstName(),
+                        training.getTrainee().getUser().getLastName()));
     }
 
     private static Specification<Training> combine(List<@Nullable Specification<Training>> specs) {

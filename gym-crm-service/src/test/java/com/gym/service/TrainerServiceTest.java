@@ -4,21 +4,21 @@ import com.gym.dto.*;
 import com.gym.exception.ResourceNotFoundException;
 import com.gym.metrics.GymMetrics;
 import com.gym.model.Trainer;
+import com.gym.model.Trainee;
 import com.gym.model.TrainingType;
 import com.gym.model.User;
 import com.gym.repository.TrainerRepository;
 import com.gym.repository.TrainingTypeRepository;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.MockedStatic;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,29 +29,23 @@ public class TrainerServiceTest {
     private TrainerRepository trainerRepository;
     private TrainingTypeRepository trainingTypeRepository;
     private UsernameGenerator usernameGenerator;
+    private PasswordGenerator passwordGenerator;
     private GymMetrics gymMetrics;
     private PasswordEncoder passwordEncoder;
     private TrainerService trainerService;
-
-    private MockedStatic<PasswordGenerator> passwordGeneratorMock;
 
     @BeforeEach
     void setUp() {
         trainerRepository = mock(TrainerRepository.class);
         trainingTypeRepository = mock(TrainingTypeRepository.class);
         usernameGenerator = mock(UsernameGenerator.class);
+        passwordGenerator = mock(PasswordGenerator.class);
         gymMetrics = mock(GymMetrics.class);
         passwordEncoder = mock(PasswordEncoder.class);
 
         trainerService = new TrainerService(
-                trainerRepository, trainingTypeRepository, usernameGenerator, gymMetrics, passwordEncoder);
-
-        passwordGeneratorMock = mockStatic(PasswordGenerator.class);
-    }
-
-    @AfterEach
-    void tearDown() {
-        passwordGeneratorMock.close();
+                trainerRepository, trainingTypeRepository, usernameGenerator, gymMetrics,
+                passwordEncoder, passwordGenerator);
     }
 
     @Test
@@ -64,7 +58,7 @@ public class TrainerServiceTest {
         TrainingType dbSpecialization = new TrainingType();
         dbSpecialization.setTrainingTypeName("Boxing");
 
-        passwordGeneratorMock.when(PasswordGenerator::generate).thenReturn("pass123ABC");
+        when(passwordGenerator.generate()).thenReturn("pass123ABC");
         when(passwordEncoder.encode("pass123ABC")).thenReturn("encodedPassword");
         when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
         when(trainingTypeRepository.findByTrainingTypeNameEqualsIgnoreCase("Boxing"))
@@ -109,6 +103,13 @@ public class TrainerServiceTest {
     @Test
     void findByUsernameWithExistingUsernameReturnsProfileResponse() {
         Trainer trainer = buildTrainer("John.Smith", "John", "Smith", "Yoga", true);
+        User traineeUser = new User();
+        traineeUser.setUsername("Jamie.Doe");
+        traineeUser.setFirstName("Jamie");
+        traineeUser.setLastName("Doe");
+        Trainee trainee = new Trainee();
+        trainee.setUser(traineeUser);
+        trainer.setTrainees(Set.of(trainee));
 
         when(trainerRepository.findByUser_Username("John.Smith")).thenReturn(Optional.of(trainer));
 
@@ -118,6 +119,11 @@ public class TrainerServiceTest {
         assertThat(response.getLastName()).isEqualTo("Smith");
         assertThat(response.getSpecialization()).isEqualTo("Yoga");
         assertThat(response.getIsActive()).isTrue();
+        assertThat(response.getTrainees()).singleElement().satisfies(summary -> {
+            assertThat(summary.getUsername()).isEqualTo("Jamie.Doe");
+            assertThat(summary.getFirstName()).isEqualTo("Jamie");
+            assertThat(summary.getLastName()).isEqualTo("Doe");
+        });
     }
 
     @Test

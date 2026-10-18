@@ -4,22 +4,20 @@ import com.gym.dto.AddTrainingRequest;
 import com.gym.exception.ResourceNotFoundException;
 import com.gym.integration.workload.TrainerWorkloadRequest;
 import com.gym.integration.workload.WorkloadGateway;
-import com.gym.mapper.TrainingMapper;
 import com.gym.metrics.GymMetrics;
 import com.gym.model.Trainee;
 import com.gym.model.Trainer;
 import com.gym.model.Training;
+import com.gym.model.TrainingType;
 import com.gym.repository.TraineeRepository;
 import com.gym.repository.TrainerRepository;
 import com.gym.repository.TrainingRepository;
 import com.gym.repository.TrainingTypeRepository;
 import com.gym.service.TrainingService;
-import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
-import org.mockito.MockedStatic;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
@@ -33,10 +31,10 @@ public class CrmComponentSteps {
     private TrainerRepository trainerRepository;
     private WorkloadGateway workloadGateway;
     private TrainingService service;
-    private MockedStatic<TrainingMapper> trainingMapper;
     private Trainer trainer;
     private Trainee trainee;
     private Training training;
+    private int requestedDuration;
     private Throwable failure;
 
     @Before
@@ -48,14 +46,11 @@ public class CrmComponentSteps {
         service = new TrainingService(trainingRepository, traineeRepository, trainerRepository,
                 mock(TrainingTypeRepository.class), mock(GymMetrics.class), workloadGateway);
         trainer = new Trainer();
+        TrainingType specialization = new TrainingType();
+        specialization.setTrainingTypeName("Strength");
+        trainer.setSpecialization(specialization);
         trainee = new Trainee();
-        training = new Training();
-        trainingMapper = mockStatic(TrainingMapper.class);
-    }
-
-    @After
-    public void tearDown() {
-        trainingMapper.close();
+        training = null;
     }
 
     @Given("trainer {string} and trainee {string} exist")
@@ -80,11 +75,11 @@ public class CrmComponentSteps {
     }
 
     private void add(String trainerUsername, String traineeUsername, int duration) {
+        requestedDuration = duration;
         var request = new AddTrainingRequest();
         request.setTrainingName("Strength session");
         request.setTrainingDate(OffsetDateTime.parse("2026-08-20T10:00:00Z"));
         request.setTrainingDuration(duration);
-        trainingMapper.when(() -> TrainingMapper.toEntity(request, trainee, trainer)).thenReturn(training);
         try {
             service.addTraining(trainerUsername, traineeUsername, request);
         } catch (Throwable exception) {
@@ -95,7 +90,11 @@ public class CrmComponentSteps {
     @Then("the training is persisted")
     public void trainingIsPersisted() {
         assertThat(failure).isNull();
-        verify(trainingRepository).save(training);
+        var trainingCaptor = org.mockito.ArgumentCaptor.forClass(Training.class);
+        verify(trainingRepository).save(trainingCaptor.capture());
+        training = trainingCaptor.getValue();
+        assertThat(training.getTrainingName()).isEqualTo("Strength session");
+        assertThat(training.getTrainingDuration()).isEqualTo(requestedDuration);
     }
 
     @Then("an ADD workload event is published")

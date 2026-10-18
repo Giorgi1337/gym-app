@@ -1,10 +1,10 @@
 package com.gym.utils;
 
 import org.apache.commons.text.RandomStringGenerator;
+import org.springframework.stereotype.Component;
 
-public final class PasswordGenerator {
-
-    private PasswordGenerator() {}
+@Component
+public class PasswordGenerator {
 
     private static final int PASSWORD_LENGTH = 10;
 
@@ -16,7 +16,7 @@ public final class PasswordGenerator {
             )
             .get();
 
-    public static String generate() {
+    public String generate() {
         return generator.generate(PASSWORD_LENGTH);
     }
 }

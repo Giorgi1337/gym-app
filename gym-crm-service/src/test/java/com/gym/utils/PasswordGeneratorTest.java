@@ -8,7 +8,7 @@ public class PasswordGeneratorTest {
 
     @Test
     void generatePassword() {
-        assertThat(PasswordGenerator.generate())
+        assertThat(new PasswordGenerator().generate())
                 .isNotNull()
                 .hasSize(10)
                 .matches("[A-Za-z0-9]{10}");

@@ -11,11 +11,9 @@ import com.gym.repository.TraineeRepository;
 import com.gym.repository.TrainerRepository;
 import com.gym.utils.PasswordGenerator;
 import com.gym.utils.UsernameGenerator;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.MockedStatic;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
@@ -34,29 +32,23 @@ public class TraineeServiceTest {
     private TraineeRepository traineeRepository;
     private TrainerRepository trainerRepository;
     private UsernameGenerator usernameGenerator;
+    private PasswordGenerator passwordGenerator;
     private GymMetrics gymMetrics;
     private PasswordEncoder passwordEncoder;
     private TraineeService traineeService;
-
-    private MockedStatic<PasswordGenerator> passwordGeneratorMock;
 
     @BeforeEach
     void setup() {
         traineeRepository = mock(TraineeRepository.class);
         trainerRepository = mock(TrainerRepository.class);
         usernameGenerator = mock(UsernameGenerator.class);
+        passwordGenerator = mock(PasswordGenerator.class);
         gymMetrics = mock(GymMetrics.class);
         passwordEncoder = mock(PasswordEncoder.class);
 
         traineeService = new TraineeService(
-                traineeRepository, trainerRepository, usernameGenerator, passwordEncoder, gymMetrics);
-
-        passwordGeneratorMock = mockStatic(PasswordGenerator.class);
-    }
-
-    @AfterEach
-    void tearDown() {
-        passwordGeneratorMock.close();
+                traineeRepository, trainerRepository, usernameGenerator, passwordGenerator,
+                passwordEncoder, gymMetrics);
     }
 
     @Test
@@ -67,7 +59,7 @@ public class TraineeServiceTest {
         request.setDateOfBirth(LocalDate.of(1998, 5, 12));
         request.setAddress("12 Rustaveli Ave, Tbilisi");
 
-        passwordGeneratorMock.when(PasswordGenerator::generate).thenReturn("pass123ABC");
+        when(passwordGenerator.generate()).thenReturn("pass123ABC");
         when(passwordEncoder.encode("pass123ABC")).thenReturn("encodedPassword");
         when(usernameGenerator.generate("John", "Smith")).thenReturn("John.Smith");
 
@@ -91,6 +83,8 @@ public class TraineeServiceTest {
     @Test
     void findByUsernameWithExistingUsernameReturnsProfileResponse() {
         Trainee trainee = buildTrainee("John", "Smith");
+        Trainer trainer = buildTrainer("trainer.one", true);
+        trainee.setTrainers(Set.of(trainer));
 
         when(traineeRepository.findByUser_Username("John.Smith")).thenReturn(Optional.of(trainee));
 
@@ -98,6 +92,12 @@ public class TraineeServiceTest {
 
         assertThat(response.getFirstName()).isEqualTo("John");
         assertThat(response.getLastName()).isEqualTo("Smith");
+        assertThat(response.getTrainers()).singleElement().satisfies(summary -> {
+            assertThat(summary.getUsername()).isEqualTo("trainer.one");
+            assertThat(summary.getFirstName()).isEqualTo("Trainer");
+            assertThat(summary.getLastName()).isEqualTo("trainer.one");
+            assertThat(summary.getSpecialization()).isEqualTo("Yoga");
+        });
     }
 
     @Test
@@ -127,6 +127,8 @@ public class TraineeServiceTest {
         assertThat(trainee.getUser().getLastName()).isEqualTo("Smithers");
         assertThat(response.getFirstName()).isEqualTo("Johnny");
         assertThat(response.getLastName()).isEqualTo("Smithers");
+        assertThat(response.getAddress()).isEqualTo("New address");
+        assertThat(response.getIsActive()).isTrue();
 
         verify(traineeRepository).save(trainee);
     }
@@ -163,7 +165,7 @@ public class TraineeServiceTest {
         List<TrainerSummary> result = traineeService.getUnassignedTrainers("John.Smith");
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getUsername()).isEqualTo("Active.Trainer");
+        assertThat(result.getFirst().getUsername()).isEqualTo("Active.Trainer");
     }
 
     @Test
@@ -193,7 +195,7 @@ public class TraineeServiceTest {
 
         assertThat(trainee.getTrainers()).containsExactly(trainer);
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getUsername()).isEqualTo("Trainer.One");
+        assertThat(result.getFirst().getUsername()).isEqualTo("Trainer.One");
 
         verify(traineeRepository).save(trainee);
     }
@@ -242,6 +244,7 @@ public class TraineeServiceTest {
         user.setFirstName(firstName);
         user.setLastName(lastName);
         user.setUsername(firstName + "." + lastName);
+        user.setIsActive(true);
 
         Trainee trainee = new Trainee();
         trainee.setUser(user);
@@ -251,6 +254,8 @@ public class TraineeServiceTest {
 
     private Trainer buildTrainer(String username, boolean isActive) {
         User user = new User();
+        user.setFirstName("Trainer");
+        user.setLastName(username);
         user.setUsername(username);
         user.setIsActive(isActive);
 

@@ -2,26 +2,22 @@ package com.gym.service;
 
 import com.gym.dto.*;
 import com.gym.exception.ResourceNotFoundException;
-import com.gym.exception.BusinessValidationException;
 import com.gym.integration.workload.WorkloadGateway;
-import com.gym.mapper.TrainingMapper;
-import com.gym.mapper.TrainingTypeMapper;
 import com.gym.metrics.GymMetrics;
 import com.gym.model.Trainee;
 import com.gym.model.Trainer;
 import com.gym.model.Training;
 import com.gym.model.TrainingType;
+import com.gym.model.User;
 import com.gym.repository.TraineeRepository;
 import com.gym.repository.TrainerRepository;
 import com.gym.repository.TrainingRepository;
 import com.gym.repository.TrainingTypeRepository;
 import io.micrometer.core.instrument.Timer;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
-import org.mockito.MockedStatic;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +26,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.OffsetDateTime;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -49,9 +47,6 @@ public class TrainingServiceTest {
     private Timer trainingQueryTimer;
     private WorkloadGateway workloadGateway;
     private TrainingService trainingService;
-
-    private MockedStatic<TrainingMapper> trainingMapperMock;
-    private MockedStatic<TrainingTypeMapper> trainingTypeMapperMock;
 
     @BeforeEach
     void setup() {
@@ -74,14 +69,6 @@ public class TrainingServiceTest {
                 trainingRepository, traineeRepository, trainerRepository, trainingTypeRepository,
                 gymMetrics, workloadGateway);
 
-        trainingMapperMock = mockStatic(TrainingMapper.class);
-        trainingTypeMapperMock = mockStatic(TrainingTypeMapper.class);
-    }
-
-    @AfterEach
-    void tearDown() {
-        trainingMapperMock.close();
-        trainingTypeMapperMock.close();
     }
 
     @Test
@@ -94,18 +81,25 @@ public class TrainingServiceTest {
         Pageable pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "trainingDate"));
 
         Trainee trainee = new Trainee();
-        Training training = new Training();
+        Training training = buildTraining();
         Page<Training> page = new PageImpl<>(List.of(training), pageable, 1);
-        TraineeTrainingPageResponse expectedResponse = mock(TraineeTrainingPageResponse.class);
 
         when(traineeRepository.findByUser_Username(username)).thenReturn(Optional.of(trainee));
         when(trainingRepository.findAll(ArgumentMatchers.<Specification<Training>>any(), eq(pageable))).thenReturn(page);
-        trainingMapperMock.when(() -> TrainingMapper.toTraineePage(page)).thenReturn(expectedResponse);
 
         TraineeTrainingPageResponse result =
                 trainingService.getTraineeTrainings(username, from, to, trainerName, type, pageable);
 
-        assertThat(result).isEqualTo(expectedResponse);
+        assertThat(result.getContent()).hasSize(1);
+        TraineeTrainingResponse mapped = result.getContent().getFirst();
+        assertThat(mapped.getTrainingName()).isEqualTo("Morning session");
+        assertThat(mapped.getTrainingDate()).isEqualTo(Instant.parse("2026-03-10T08:30:00Z").atOffset(ZoneOffset.UTC));
+        assertThat(mapped.getTrainingType()).isEqualTo("Yoga");
+        assertThat(mapped.getTrainingDuration()).isEqualTo(45);
+        assertThat(mapped.getTrainerName()).isEqualTo("Alex Trainer");
+        assertThat(result.getPage()).isZero();
+        assertThat(result.getSize()).isEqualTo(20);
+        assertThat(result.getTotalElements()).isEqualTo(1);
     }
 
     @Test
@@ -115,15 +109,12 @@ public class TrainingServiceTest {
 
         Trainee trainee = new Trainee();
         Page<Training> page = new PageImpl<>(List.of());
-        TraineeTrainingPageResponse expectedResponse = mock(TraineeTrainingPageResponse.class);
 
         when(traineeRepository.findByUser_Username(username)).thenReturn(Optional.of(trainee));
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         when(trainingRepository.findAll(
                 ArgumentMatchers.<Specification<Training>>any(), pageableCaptor.capture())).thenReturn(page);
-        trainingMapperMock.when(() -> TrainingMapper.toTraineePage(page)).thenReturn(expectedResponse);
-
         trainingService.getTraineeTrainings(username, null, null, null, null, unsorted);
 
         Sort resolvedSort = pageableCaptor.getValue().getSort();
@@ -153,18 +144,22 @@ public class TrainingServiceTest {
         Pageable pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "trainingDate"));
 
         Trainer trainer = new Trainer();
-        Training training = new Training();
+        Training training = buildTraining();
         Page<Training> page = new PageImpl<>(List.of(training), pageable, 1);
-        TrainerTrainingPageResponse expectedResponse = mock(TrainerTrainingPageResponse.class);
 
         when(trainerRepository.findByUser_Username(username)).thenReturn(Optional.of(trainer));
         when(trainingRepository.findAll(ArgumentMatchers.<Specification<Training>>any(), eq(pageable))).thenReturn(page);
-        trainingMapperMock.when(() -> TrainingMapper.toTrainerPage(page)).thenReturn(expectedResponse);
 
         TrainerTrainingPageResponse result =
                 trainingService.getTrainerTrainings(username, from, to, traineeName, pageable);
 
-        assertThat(result).isEqualTo(expectedResponse);
+        assertThat(result.getContent()).hasSize(1);
+        TrainerTrainingResponse mapped = result.getContent().get(0);
+        assertThat(mapped.getTrainingName()).isEqualTo("Morning session");
+        assertThat(mapped.getTrainingDate()).isEqualTo(Instant.parse("2026-03-10T08:30:00Z").atOffset(ZoneOffset.UTC));
+        assertThat(mapped.getTrainingType()).isEqualTo("Yoga");
+        assertThat(mapped.getTrainingDuration()).isEqualTo(45);
+        assertThat(mapped.getTraineeName()).isEqualTo("Jamie Trainee");
     }
 
     @Test
@@ -186,18 +181,26 @@ public class TrainingServiceTest {
         String traineeUsername = "john.doe";
         AddTrainingRequest request = mock(AddTrainingRequest.class);
         when(request.getTrainingDate()).thenReturn(OffsetDateTime.now().plusDays(1));
+        when(request.getTrainingName()).thenReturn("  Morning session  ");
+        when(request.getTrainingDuration()).thenReturn(45);
 
         Trainer trainer = new Trainer();
+        TrainingType specialization = new TrainingType();
+        specialization.setTrainingTypeName("Yoga");
+        trainer.setSpecialization(specialization);
         Trainee trainee = new Trainee();
-        Training training = new Training();
 
         when(trainerRepository.findByUser_Username(trainerUsername)).thenReturn(Optional.of(trainer));
         when(traineeRepository.findByUser_Username(traineeUsername)).thenReturn(Optional.of(trainee));
-        trainingMapperMock.when(() -> TrainingMapper.toEntity(request, trainee, trainer)).thenReturn(training);
-
         trainingService.addTraining(trainerUsername, traineeUsername, request);
 
-        verify(trainingRepository).save(training);
+        ArgumentCaptor<Training> trainingCaptor = ArgumentCaptor.forClass(Training.class);
+        verify(trainingRepository).save(trainingCaptor.capture());
+        assertThat(trainingCaptor.getValue().getTrainee()).isSameAs(trainee);
+        assertThat(trainingCaptor.getValue().getTrainer()).isSameAs(trainer);
+        assertThat(trainingCaptor.getValue().getTrainingName()).isEqualTo("Morning session");
+        assertThat(trainingCaptor.getValue().getTrainingType()).isSameAs(specialization);
+        assertThat(trainingCaptor.getValue().getTrainingDuration()).isEqualTo(45);
         verify(gymMetrics).incrementTrainingAdded();
     }
 
@@ -264,13 +267,41 @@ public class TrainingServiceTest {
     @Test
     void getTrainingTypesReturnsMappedResponseList() {
         TrainingType type = new TrainingType();
-        TrainingTypeResponse expectedResponse = mock(TrainingTypeResponse.class);
+        type.setId(7L);
+        type.setTrainingTypeName("Yoga");
 
         when(trainingTypeRepository.findAll()).thenReturn(List.of(type));
-        trainingTypeMapperMock.when(() -> TrainingTypeMapper.toResponse(type)).thenReturn(expectedResponse);
 
         List<TrainingTypeResponse> results = trainingService.getTrainingTypes();
 
-        assertThat(results).containsExactly(expectedResponse);
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().getId()).isEqualTo(7L);
+        assertThat(results.getFirst().getTrainingTypeName()).isEqualTo("Yoga");
+    }
+
+    private Training buildTraining() {
+        User trainerUser = new User();
+        trainerUser.setFirstName("Alex");
+        trainerUser.setLastName("Trainer");
+        Trainer trainer = new Trainer();
+        trainer.setUser(trainerUser);
+
+        User traineeUser = new User();
+        traineeUser.setFirstName("Jamie");
+        traineeUser.setLastName("Trainee");
+        Trainee trainee = new Trainee();
+        trainee.setUser(traineeUser);
+
+        TrainingType type = new TrainingType();
+        type.setTrainingTypeName("Yoga");
+
+        Training training = new Training();
+        training.setTrainee(trainee);
+        training.setTrainer(trainer);
+        training.setTrainingName("Morning session");
+        training.setTrainingType(type);
+        training.setTrainingDate(Instant.parse("2026-03-10T08:30:00Z"));
+        training.setTrainingDuration(45);
+        return training;
     }
 }
