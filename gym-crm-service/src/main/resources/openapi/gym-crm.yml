@@ -824,6 +824,12 @@ components:
     TraineeTrainingPageResponse:
       type: object
       description: A page of trainee training entries
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
       properties:
         content:
           type: array
@@ -851,6 +857,12 @@ components:
     TrainerTrainingPageResponse:
       type: object
       description: A page of trainer training entries
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
       properties:
         content:
           type: array
@@ -1004,6 +1016,12 @@ components:
     TraineeUpdateResponse:
       type: object
       description: Updated trainee profile details, including assigned trainers
+      required:
+        - username
+        - firstName
+        - lastName
+        - isActive
+        - trainers
       properties:
         username:
           type: string
@@ -1080,6 +1098,12 @@ components:
     TrainerProfileResponse:
       type: object
       description: Trainer profile details
+      required:
+        - firstName
+        - lastName
+        - specialization
+        - isActive
+        - trainees
       properties:
         firstName:
           type: string
@@ -1110,6 +1134,10 @@ components:
     TraineeSummary:
       type: object
       description: Summary of a trainee assigned to a trainer
+      required:
+        - username
+        - firstName
+        - lastName
       properties:
         username:
           type: string
@@ -1155,6 +1183,13 @@ components:
     TrainerUpdateResponse:
       type: object
       description: Updated trainer profile details, including assigned trainees
+      required:
+        - username
+        - firstName
+        - lastName
+        - specialization
+        - isActive
+        - trainees
       properties:
         username:
           type: string
@@ -1215,6 +1250,12 @@ components:
     TraineeTrainingResponse:
       type: object
       description: Training entry as seen from a trainee's training list
+      required:
+        - trainingName
+        - trainingDate
+        - trainingType
+        - trainingDuration
+        - trainerName
       properties:
         trainingName:
           type: string
@@ -1245,6 +1286,12 @@ components:
     TrainerTrainingResponse:
       type: object
       description: Training entry as seen from a trainer's training list
+      required:
+        - trainingName
+        - trainingDate
+        - trainingType
+        - trainingDuration
+        - traineeName
       properties:
         trainingName:
           type: string
@@ -1275,6 +1322,9 @@ components:
     TrainingTypeResponse:
       type: object
       description: Training type reference entry
+      required:
+        - id
+        - trainingTypeName
       properties:
         id:
           type: integer
@@ -1337,6 +1387,11 @@ components:
     TraineeProfileResponse:
       type: object
       description: Trainee profile details
+      required:
+        - firstName
+        - lastName
+        - isActive
+        - trainers
       properties:
         firstName:
           type: string
@@ -1373,6 +1428,11 @@ components:
     TrainerSummary:
       type: object
       description: Summary of a trainer assigned to a trainee
+      required:
+        - username
+        - firstName
+        - lastName
+        - specialization
       properties:
         username:
           type: string
