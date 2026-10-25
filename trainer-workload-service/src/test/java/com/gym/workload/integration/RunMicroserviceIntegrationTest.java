@@ -45,6 +45,12 @@ class RunMicroserviceIntegrationTest {
             .withExposedPorts(61616)
             .waitingFor(Wait.forListeningPort());
 
+    static {
+        // Make the containers available before Spring resolves @DynamicPropertySource values.
+        mongo.start();
+        artemis.start();
+    }
+
     @Autowired
     private TrainerWorkloadRepository repository;
 
