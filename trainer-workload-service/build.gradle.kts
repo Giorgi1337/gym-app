@@ -30,11 +30,12 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-security-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
-    testImplementation(project(":gym-crm-service"))
-    testImplementation("jakarta.persistence:jakarta.persistence-api")
     testImplementation("io.cucumber:cucumber-java:7.34.6")
     testImplementation("io.cucumber:cucumber-junit-platform-engine:7.34.6")
     testImplementation("org.junit.platform:junit-platform-suite:6.1.2")
+    testImplementation("org.awaitility:awaitility")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-mongodb")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
