@@ -35,7 +35,7 @@ class RunMicroserviceIntegrationTest {
     private static final String DEAD_LETTER_QUEUE = "trainer.workload.dlq";
 
     @Container
-    static final MongoDBContainer mongo = new MongoDBContainer(DockerImageName.parse("mongo:8.3.7"));
+    static final MongoDBContainer mongo = new MongoDBContainer(DockerImageName.parse("mongo:4.4.29"));
 
     @Container
     @SuppressWarnings("resource") // The Testcontainers JUnit extension owns this container's lifecycle.
