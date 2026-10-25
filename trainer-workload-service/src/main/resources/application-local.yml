@@ -1,0 +1,21 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+
+logging:
+  level:
+    root: INFO
+    com.gym.workload: DEBUG
+
+jwt:
+  secret: ${JWT_SECRET:am9pbndhdGNocm91dGVkcmVzc3JlY2VpdmVyZWFsY292ZXJtZWJhc2lzZmlsbWFzY2E=}
+  issuer: gym-crm-service
+  audience: gym-platform
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true

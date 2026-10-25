@@ -1,0 +1,19 @@
+spring:
+  config:
+    activate:
+      on-profile: stg
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME:gym_crm_stg}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 3
+
+logging:
+  level:
+    root: INFO
+    com.gym: INFO
+    org.hibernate.SQL: WARN

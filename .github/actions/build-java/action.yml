@@ -1,0 +1,45 @@
+name: Build Java services
+description: Build, test, and package all Gradle subprojects
+
+inputs:
+  java-version:
+    description: Java version to use for the build.
+    required: false
+    default: '25'
+  cache-read-only:
+    description: Whether the Gradle cache should be read-only.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Java
+      uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+      with:
+        java-version: ${{ inputs.java-version }}
+        distribution: temurin
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+      with:
+        cache-read-only: ${{ inputs.cache-read-only }}
+        gradle-home-cache-cleanup: true
+
+    - name: Make Gradle wrapper executable
+      run: chmod +x gradlew
+      shell: bash
+
+    - name: Check and package all services
+      run: ./gradlew --no-daemon check bootJar
+      shell: bash
+
+    - name: Upload JaCoCo reports
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: jacoco-report
+        path: |
+          **/build/reports/jacoco/test/html/
+          **/build/reports/jacoco/test/jacocoTestReport.xml
+        if-no-files-found: warn

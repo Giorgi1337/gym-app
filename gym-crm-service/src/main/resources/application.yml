@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: gym-crm-service
+
+  profiles:
+    default: local
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  artemis:
+    broker-url: ${ACTIVEMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${ACTIVEMQ_USER:admin}
+    password: ${ACTIVEMQ_PASSWORD:admin}
+
+messaging:
+  workload:
+    queue: trainer.workload
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,flyway
+
+  endpoint:
+    health:
+      show-details: always
+
+  info:
+    java:
+      enabled: true
+    os:
+      enabled: true
+    build:
+      enabled: true
+
+  tracing:
+    sampling:
+      probability: 1.0
+
+
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+  health:
+    defaults:
+      enabled: false
+
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
+      percentiles:
+        http:
+          server:
+            request: 0.5,0.9,0.95,0.99
+
+logging:
+  level:
+    root: INFO
+    com.gym: INFO

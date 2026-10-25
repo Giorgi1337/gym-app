@@ -1,0 +1,30 @@
+name: Build (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: Java version to use for the build.
+        required: false
+        default: '25'
+        type: string
+      cache-read-only:
+        description: Whether the Gradle cache should be read-only.
+        required: false
+        default: 'false'
+        type: string
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4.2.2
+
+      - name: Build Java services
+        uses: ./.github/actions/build-java
+        with:
+          java-version: ${{ inputs.java-version }}
+          cache-read-only: ${{ inputs.cache-read-only }}
